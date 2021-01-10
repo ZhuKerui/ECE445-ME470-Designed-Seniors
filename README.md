@@ -5,7 +5,6 @@
 ## Requirements
 
 > Python 3.x
----
 
 ## Environment Setup
 
@@ -23,7 +22,6 @@ To read the camera input, we use the opencv-python library, which is a python bi
 ```bash
 pip install opencv-python
 ```
----
 
 ## Demo
 To demo the project, type
