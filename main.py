@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 
 from camera import Camera_Manager
+from graph import Coordinatograph
 
 class Ui_MainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
@@ -14,91 +15,60 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.camera_manager = Camera_Manager()
         self.CAM_NUM = 0
         self.set_ui()
-        self.slot_init()
-        self.__flag_work = 0
         self.x =0
         self.count = 0
 
     def set_ui(self):
 
-        self.__layout_main = QtWidgets.QHBoxLayout()
-        self.__layout_fun_button = QtWidgets.QVBoxLayout()
-        self.__layout_data_show = QtWidgets.QVBoxLayout()
+        # Layout elements setup
+        camera_open_button = QtWidgets.QPushButton(u'Camera On')
+        close_button = QtWidgets.QPushButton(u'Exit')
+        camera_display_label = QtWidgets.QLabel()
+        camera_display_label.setFixedSize(641, 481)
+        camera_display_label.setAutoFillBackground(False)
+        coordinatograph = Coordinatograph('3D Skeleton Display', '', '', '', '')
 
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addWidget(camera_open_button)
+        button_layout.addWidget(close_button)
 
+        image_layout = QtWidgets.QHBoxLayout()
+        image_layout.addWidget(camera_display_label)
+        image_layout.addWidget(coordinatograph)
 
-        self.button_open_camera = QtWidgets.QPushButton(u'Camera On')
- 
-        self.button_close = QtWidgets.QPushButton(u'Exit')
-
-
-        # Setting buttons' attributes
-        buttons = [self.button_open_camera, self.button_close]
-        for button in buttons:
-            button.setStyleSheet("QPushButton{color:black}"
-                                 "QPushButton:hover{color:red}"
-                                 "QPushButton{background-color:rgb(78,255,255)}"
-                                 "QPushButton{border:2px}"
-                                 "QPushButton{border-radius:10px}"
-                                 "QPushButton{padding:2px 4px}")
-            button.setMinimumHeight(50)
-
-        # Setting the position of the window to x = 500 and y = 500
-        self.move(500, 500)
-
-        # Information display
-        self.label_show_camera = QtWidgets.QLabel()
-        self.label_move = QtWidgets.QLabel()
-        self.label_move.setFixedSize(100, 100)
-
-        self.label_show_camera.setFixedSize(641, 481)
-        self.label_show_camera.setAutoFillBackground(False)
-
-        self.__layout_fun_button.addWidget(self.button_open_camera)
-        self.__layout_fun_button.addWidget(self.button_close)
-        self.__layout_fun_button.addWidget(self.label_move)
-
-        self.__layout_main.addLayout(self.__layout_fun_button)
-        self.__layout_main.addWidget(self.label_show_camera)
-
-        self.setLayout(self.__layout_main)
-        self.label_move.raise_()
-        self.setWindowTitle(u'Demo')
-
-        '''
-        # 设置背景图片
-        palette1 = QPalette()
-        palette1.setBrush(self.backgroundRole(), QBrush(QPixmap('background.jpg')))
-        self.setPalette(palette1)
-        '''
-
-
-    def slot_init(self):
-        self.button_open_camera.clicked.connect(self.button_open_camera_click)
-        self.timer_camera.timeout.connect(self.show_camera)
-        self.button_close.clicked.connect(self.close)
-
-
-    def button_open_camera_click(self):
-        if self.timer_camera.isActive() == False:
-            flag = self.camera_manager.open(self.CAM_NUM)
-            if flag == False:
-                msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"Please check whether the camera is connected to the computer correctly", buttons=QtWidgets.QMessageBox.Ok,
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addLayout(image_layout)
+        main_layout.addLayout(button_layout)
+        
+        # Signal connections setup
+        def camera_open_button_click():
+            if self.timer_camera.isActive() == False:
+                flag = self.camera_manager.open(self.CAM_NUM)
+                if flag == False:
+                    msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"Please check whether the camera is connected to the computer correctly", buttons=QtWidgets.QMessageBox.Ok,
                                                 defaultButton=QtWidgets.QMessageBox.Ok)
+                else:
+                    self.timer_camera.start(30)
+                    camera_open_button.setText(u'Camera off')
             else:
-                self.timer_camera.start(30)
-                self.button_open_camera.setText(u'Camera off')
-        else:
-            self.timer_camera.stop()
-            self.camera_manager.release()
-            self.label_show_camera.clear()
-            self.button_open_camera.setText(u'Camera on')
+                self.timer_camera.stop()
+                self.camera_manager.release()
+                camera_display_label.clear()
+                camera_open_button.setText(u'Camera on')
+    
+        camera_open_button.clicked.connect(camera_open_button_click)
 
+        def show_camera():
+            camera_image = self.camera_manager.get_camera_image()
+            showImage = QtGui.QImage(camera_image.data, camera_image.shape[1], camera_image.shape[0], QtGui.QImage.Format_RGB888)
+            camera_display_label.setPixmap(QtGui.QPixmap.fromImage(showImage))
 
-    def show_camera(self):
-        camera_image = self.camera_manager.get_camera_image()
-        showImage = QtGui.QImage(camera_image.data, camera_image.shape[1], camera_image.shape[0], QtGui.QImage.Format_RGB888)
-        self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
+        self.timer_camera.timeout.connect(show_camera)
+        close_button.clicked.connect(self.close)
+
+        # Launch the layout
+        self.setLayout(main_layout)
+        self.setWindowTitle(u'Keebot Demo')
 
 
     def closeEvent(self, event):
