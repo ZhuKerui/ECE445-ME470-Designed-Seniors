@@ -1,0 +1,9 @@
+torch
+torchvision
+pyqt5
+pyqt5-tools
+pyqtgraph
+pyOpenGL
+opencv-python
+pexpect
+pygatt
