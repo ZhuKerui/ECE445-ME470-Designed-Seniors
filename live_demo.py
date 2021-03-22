@@ -34,6 +34,9 @@ class Live_Model(QThread):
     self.model, _, _ = create_model(self.opt)
     self.model = self.model.to(self.opt.device)
     self.model.eval()
+    self.transform_matrix = np.array([[1, 0, 0],
+                                      [0, 0,-1],
+                                      [0, 1, 0]])
 
   def stop(self):
     self.__alive = False
@@ -67,7 +70,7 @@ class Live_Model(QThread):
     pred = get_preds(out['hm'].detach().cpu().numpy())[0]
     pred = transform_preds(pred, c, s, (self.opt.output_w, self.opt.output_h))
     pred_3d = get_preds_3d(out['hm'].detach().cpu().numpy(), out['depth'].detach().cpu().numpy())[0]
-    self.model_signal.emit(pred_3d)
+    self.model_signal.emit(np.matmul(pred_3d.reshape(-1, 3), self.transform_matrix))
     
   def generate_demo_opt(self):
     parser = argparse.ArgumentParser()

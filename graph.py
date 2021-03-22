@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pyqtgraph as pg
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
+from mpii import MPII
  
 import pyqtgraph.opengl as gl
 
@@ -40,15 +41,10 @@ class Coordinatograph(QWidget):
         self.v_layout.addWidget(self.gw)
         self.setLayout(self.v_layout)
 
-        self.edges = [[0, 1], [1, 2], [2, 6], [6, 3], [3, 4], [4, 5], 
-              [10, 11], [11, 12], [12, 8], [8, 13], [13, 14], [14, 15], 
-              [6, 8], [8, 9]]
-        self.arm_edges = np.array([10, 11, 12, 8, 13, 14, 15], dtype=np.int)
-        self.back_edges = np.array([9, 8, 7, 6], dtype=np.int)
-        self.leg_edges = np.array([0, 1, 2, 6, 3, 4, 5], dtype=np.int)
-        self.transform_matrix = np.array([[1, 0, 0],
-                                          [0, 0,-1],
-                                          [0, 1, 0]])
+        self.arm_edges = np.array([MPII.r_wrist, MPII.r_elbow, MPII.r_shoulder, MPII.neck, MPII.l_shoulder, MPII.l_elbow, MPII.l_wrist], dtype=np.int)
+        self.back_edges = np.array([MPII.head, MPII.head, MPII.spine, MPII.pelvis], dtype=np.int)
+        self.leg_edges = np.array([MPII.r_ankle, MPII.r_knee, MPII.r_hip, MPII.pelvis, MPII.l_hip, MPII.l_knee, MPII.l_ankle], dtype=np.int)
+        
     def pause_plot(self):
         self.pause = True
 
@@ -58,7 +54,6 @@ class Coordinatograph(QWidget):
     def update_value(self, points):
         if self.pause:
             return
-        points = np.matmul(points.reshape(-1, 3), self.transform_matrix)
         self.arm.setData(pos=points[self.arm_edges])
         self.back.setData(pos=points[self.back_edges])
         self.leg.setData(pos=points[self.leg_edges])
