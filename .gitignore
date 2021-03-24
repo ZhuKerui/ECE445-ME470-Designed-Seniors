@@ -3,5 +3,3 @@ __pycache__
 *.log
 data
 .vscode
-docker-compose.yml
-Dockerfile

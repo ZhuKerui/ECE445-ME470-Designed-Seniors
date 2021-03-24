@@ -1,0 +1,15 @@
+version: '3'
+services: 
+    keebot:
+        build: 
+            context: ./
+            dockerfile: Dockerfile
+        command: python main.py
+        container_name: Keebot
+        volumes: 
+            - ./:/keebot_workspace
+        networks: 
+            - keebot_network
+
+networks: 
+    keebot_network:
