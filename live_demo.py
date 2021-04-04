@@ -2,8 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import pose_model_3d.src._init_paths
-
 from time import sleep, time
 import gc
 import os

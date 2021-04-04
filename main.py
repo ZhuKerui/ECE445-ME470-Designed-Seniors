@@ -11,18 +11,16 @@ from camera import Camera_Manager
 from graph import Coordinatograph
 from live_demo import Live_Model
 from mpii import MPII
-
-def normalize(vecs:np.ndarray):
-    normalizers = np.sqrt((vecs * vecs).sum(axis=1))
-    normalizers[normalizers==0]=1
-    return (vecs.T / normalizers).T
-
+from ble import BLE_Driver, device_addr, read_uuid, write_uuid
 
 class Ui_MainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(Ui_MainWindow, self).__init__(parent)
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
+        self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
+        self.ble_manager.start()
+        self.mpii = MPII(self.send_command)
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
@@ -35,6 +33,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         # Layout elements setup
         self.camera_open_button = QtWidgets.QPushButton(u'Camera On')
         close_button = QtWidgets.QPushButton(u'Exit')
+        test_button = QtWidgets.QPushButton(u'Test')
         self.camera_display_label = QtWidgets.QLabel()
         self.camera_display_label.setFixedSize(641, 481)
         self.camera_display_label.setAutoFillBackground(False)
@@ -43,6 +42,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         button_layout = QtWidgets.QHBoxLayout()
         button_layout.addWidget(self.camera_open_button)
         button_layout.addWidget(close_button)
+        button_layout.addWidget(test_button)
 
         image_layout = QtWidgets.QHBoxLayout()
         image_layout.addWidget(self.camera_display_label)
@@ -56,8 +56,9 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.camera_open_button.clicked.connect(self.camera_open_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
         close_button.clicked.connect(self.close)
+        test_button.clicked.connect(self.send_test_command)
         self.pose_model.model_signal.connect(coordinatograph.update_value)
-        self.pose_model.model_signal.connect(self.send_command)
+        self.pose_model.model_signal.connect(self.mpii.cal_limb_angle)
 
         # Launch the layout
         self.setLayout(main_layout)
@@ -90,36 +91,11 @@ class Ui_MainWindow(QtWidgets.QWidget):
         camera_image = cv2.resize(camera_image, (256, 256))
         self.pose_model.enqueue_image(camera_image)
 
-    def send_command(self, points:np.ndarray):
-        # Get vectors
-        neck2r_shoulder = points[MPII.r_shoulder] - points[MPII.neck]
-        neck2spine = points[MPII.spine] - points[MPII.neck]
-        neck2l_shoulder = points[MPII.l_shoulder] - points[MPII.neck]
-        r_shoulder2r_elbow = points[MPII.r_elbow] - points[MPII.r_shoulder]
-        l_shoulder2l_elbow = points[MPII.l_elbow] - points[MPII.l_shoulder]
-        r_elbow2r_wrist = points[MPII.r_wrist] - points[MPII.r_elbow]
-        l_elbow2l_wrist = points[MPII.l_wrist] - points[MPII.l_elbow]
-        pelvis2r_hip = points[MPII.r_hip] - points[MPII.pelvis]
-        pelvis2l_hip = points[MPII.l_hip] - points[MPII.pelvis]
-        r_hip2l_hip = points[MPII.l_hip] - points[MPII.r_hip]
-        r_hip2r_knee = points[MPII.r_knee] - points[MPII.r_hip]
-        r_knee2r_ankle = points[MPII.r_ankle] - points[MPII.r_knee]
-        l_hip2l_knee = points[MPII.l_knee] - points[MPII.l_hip]
-        l_knee2l_ankle = points[MPII.l_ankle] - points[MPII.l_knee]
-        
-        r_chest_plane = np.cross(neck2r_shoulder, neck2spine)
-        l_chest_plane = np.cross(neck2spine, neck2l_shoulder)
-        haunch_plane = np.cross(pelvis2r_hip, pelvis2l_hip)
+    def send_command(self, angles:np.ndarray):
+        self.ble_manager.write(b'\x00%b\x00' % angles.tobytes())
 
-        # Calculate angles
-        v1 = np.vstack([r_elbow2r_wrist,    r_shoulder2r_elbow, l_elbow2l_wrist,    l_shoulder2l_elbow, r_knee2r_ankle, l_knee2l_ankle, -r_hip2l_hip,   r_hip2l_hip,    r_shoulder2r_elbow, l_shoulder2l_elbow, r_hip2r_knee,   l_hip2l_knee])
-        v2 = np.vstack([r_shoulder2r_elbow, neck2r_shoulder,    l_shoulder2l_elbow, neck2l_shoulder,    r_hip2r_knee,   l_hip2l_knee,   r_hip2r_knee,   l_hip2l_knee,   r_chest_plane,      l_chest_plane,      haunch_plane,   haunch_plane])
-        v1 = normalize(v1)
-        v2 = normalize(v2)
-        angles = (v1 * v2).sum(axis=1)
-        angles[:8] = np.arccos(angles[:8])
-        angles[8:] = np.arcsin(angles[8:])
-        return angles.astype(np.int16)
+    def send_test_command(self):
+        self.ble_manager.write(b'\x00%b\x00' % 'Test'.encode())
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()
@@ -140,6 +116,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             if self.timer_camera.isActive():
                 self.timer_camera.stop()
             self.pose_model.stop()
+            self.ble_manager.stop()
             event.accept()
 
 

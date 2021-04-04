@@ -1,6 +1,10 @@
 import pygatt
 import time
 
+device_addr = 'D4:22:DA:37:43:E7'
+read_uuid = '0000fff1-0000-1000-8000-00805f9b34fb'
+write_uuid = '0000fff2-0000-1000-8000-00805f9b34fb'
+
 class BLE_Driver:
     def __init__(self, device_addr:str, read_uuid:str, write_uuid:str, read_handler):
         self.adapter = pygatt.GATTToolBackend()
@@ -14,17 +18,14 @@ class BLE_Driver:
         self.device = self.adapter.connect(self.device_addr, address_type=pygatt.BLEAddressType.random)
         self.device.subscribe(self.read_uuid, callback=self.read_handler)
 
-    def write(self, msg:str):
-        self.device.char_write(self.write_uuid, msg.encode())
+    def write(self, msg:bytes):
+        self.device.char_write(self.write_uuid, msg)
 
     def stop(self):
         self.device.disconnect()
         self.adapter.stop()
 
 if __name__ == '__main__':
-    device_addr = 'D4:22:DA:37:43:E7'
-    read_uuid = '0000fff1-0000-1000-8000-00805f9b34fb'
-    write_uuid = '0000fff2-0000-1000-8000-00805f9b34fb'
 
     def handle_data(handle:int, value:bytearray):
         """

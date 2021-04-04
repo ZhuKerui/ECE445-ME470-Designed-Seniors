@@ -7,3 +7,4 @@ pyOpenGL
 opencv-python
 pexpect
 pygatt
+matplotlib
