@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import os
 
-from models.msra_resnet import get_pose_net
+from pose_model_3d.src.lib.models.msra_resnet import get_pose_net
 
 def create_model(opt): 
   if 'msra' in opt.arch:

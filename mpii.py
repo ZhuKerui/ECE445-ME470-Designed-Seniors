@@ -49,24 +49,31 @@ class MPII:
         return normalize(points[self.vec_end] - points[self.vec_start])
 
     def gen_init_axis(self, vecs:np.ndarray):
-        shoulder_z = - vecs[self.upperspine_v]
-        r_shoulder_y, l_shoulder_y = np.cross(shoulder_z, vecs[[self.r_shoulder_v, self.l_shoulder_v]])
-        r_shoulder_x, l_shoulder_x = np.cross([r_shoulder_y, l_shoulder_y], shoulder_z)
-        hip_z = vecs[self.lumbarspine_v]
-        r_hip_y, l_hip_y = np.cross(hip_z, vecs[[self.r_hipbone_v, self.l_hipbone_v]])
-        r_hip_x, l_hip_x = np.cross([r_hip_y, l_hip_y], hip_z)
-        return normalize(np.array([r_shoulder_x, r_shoulder_y, shoulder_z, l_shoulder_x, l_shoulder_y, shoulder_z, r_hip_x, r_hip_y, hip_z, l_hip_x, l_hip_y, hip_z])).reshape(4,3,3)
+        shoulder_x = vecs[self.upperspine_v]
+        r_shoulder_y, l_shoulder_y = np.cross(vecs[[self.r_shoulder_v, self.l_shoulder_v]], shoulder_x)
+        r_shoulder_z, l_shoulder_z = np.cross(shoulder_x, [r_shoulder_y, l_shoulder_y])
+        l_shoulder_y = - l_shoulder_y # Inverse the direction of y axis for the left side
+        
+        hip_x = - vecs[self.lumbarspine_v]
+        r_hip_y, l_hip_y = np.cross(vecs[[self.r_hipbone_v, self.l_hipbone_v]], hip_x)
+        r_hip_z, l_hip_z = np.cross(hip_x, [r_hip_y, l_hip_y])
+        l_hip_y = - l_hip_y # Inverse the direction of y axis for the left side
+        return normalize(np.array([shoulder_x, r_shoulder_y, r_shoulder_z, shoulder_x, l_shoulder_y, l_shoulder_z, hip_x, r_hip_y, r_hip_z, hip_x, l_hip_y, l_hip_z])).reshape(4,3,3)
 
     def cal_limb_angle(self, upper_limb:np.ndarray, lower_limb:np.ndarray, init_axis:np.ndarray):
-        theta_0 = np.arccos(upper_limb.dot(init_axis[2]))
+        project_vec = upper_limb - (upper_limb.dot(init_axis[1]) * init_axis[1])
+        project_vec /= np.linalg.norm(project_vec)
+        theta_0 = np.arccos(project_vec.dot(init_axis[0]))
         theta_1 = np.arccos(upper_limb.dot(init_axis[1]))
         axis = init_axis
         R1 = Rodrigues(theta_0, axis[1])
         axis = np.matmul(R1, axis.T).T
-        R2 = Rodrigues(theta_1, axis[0])
+        R2 = Rodrigues(theta_1, axis[2])
         axis = np.matmul(R2, axis.T).T
-        axis = np.array([-axis[2], axis[1]], axis[0])
-        theta_2 = np.arccos(lower_limb.dot(axis[2]))
+
+        project_vec = lower_limb - (lower_limb.dot(axis[0]) * axis[0])
+        project_vec /= np.linalg.norm(project_vec)
+        theta_2 = np.arccos(project_vec.dot(init_axis[2]))
         theta_3 = np.arccos(lower_limb.dot(axis[0]))
 
         return (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)

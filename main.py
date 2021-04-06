@@ -19,8 +19,8 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
-        self.ble_manager.start()
-        self.mpii = MPII(self.send_command)
+        # self.ble_manager.start()
+        # self.mpii = MPII(self.send_command)
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
@@ -58,7 +58,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         close_button.clicked.connect(self.close)
         test_button.clicked.connect(self.send_test_command)
         self.pose_model.model_signal.connect(coordinatograph.update_value)
-        self.pose_model.model_signal.connect(self.mpii.cal_limb_angle)
+        # self.pose_model.model_signal.connect(self.mpii.cal_limb_angle)
 
         # Launch the layout
         self.setLayout(main_layout)
