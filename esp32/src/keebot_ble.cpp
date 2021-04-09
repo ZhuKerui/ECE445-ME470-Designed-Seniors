@@ -54,7 +54,7 @@ void Keebot_BLE::MyCallbacks::onWrite(BLECharacteristic *pCharacteristic) {     
     if (rxValue.length() > 0) {                         // Print the received data to the serial
         Serial.print("Received Value: ");
         for (int i = 0; i < rxValue.length(); i++)
-            Serial.print(rxValue[i]);
+            Serial.print("i" % rxValue[i]);
         Serial.println();
     }
 }

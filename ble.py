@@ -37,8 +37,8 @@ if __name__ == '__main__':
     try:
         ble_driver = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=handle_data)
         ble_driver.start()
-        ble_driver.write("hello world")
-        time.sleep(5)
+        ble_driver.write("hello world".encode())
+        time.sleep(20)
         ble_driver.stop()
     except Exception as e:
         print(e)

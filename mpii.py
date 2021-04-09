@@ -34,6 +34,21 @@ class MPII:
     l_thigh_v = 12
     l_calfbone_v = 13
 
+    point_labels = ['r_ankle', 'r_knee', 'r_hip', 'l_hip', 
+                    'l_knee', 'l_ankle', 'pelvis', 'spine', 
+                    'neck', 'head', 'r_wrist', 'r_elbow', 
+                    'r_shoulder', 'l_shoulder', 'l_elbow', 'l_wrist']
+
+    vector_labels = ['r_shoulder_v', 'r_upperarm_v', 'r_forearm_v', 'l_shoulder_v', 
+                    'l_upperarm_v', 'l_forearm_v', 'upperspine_v', 'lumbarspine_v', 
+                    'r_hipbone_v', 'r_thigh_v', 'r_calfbone_v', 'l_hipbone_v', 
+                    'l_thigh_v', 'l_calfbone_v']
+
+    angle_labels = ['r_arm_0', 'r_arm_1', 'r_arm_2', 'r_arm_3', 
+                    'l_arm_0', 'l_arm_1', 'l_arm_2', 'l_arm_3', 
+                    'r_leg_0', 'r_leg_1', 'r_leg_2', 'r_leg_3', 
+                    'l_leg_0', 'l_leg_1', 'l_leg_2', 'l_lge_3']
+
     def __init__(self, callback):
         self.vec_start = np.array([self.neck, self.r_shoulder, self.r_elbow, self.neck, 
                                     self.l_shoulder, self.l_elbow, self.neck, self.pelvis, 
@@ -86,6 +101,6 @@ class MPII:
         r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis)
         l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis)
         angle = np.hstack([r_arm_angle, l_arm_angle, r_hip_angle, l_hip_angle])
-        angle[angle > 255] = 255
+        angle[angle >= 180] = 180
         angle[angle < 1] = 1
         self.callback(angle.astype(np.uint8))

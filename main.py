@@ -19,14 +19,15 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
-        # self.ble_manager.start()
-        # self.mpii = MPII(self.send_command)
+        self.ble_manager.start()
+        self.mpii = MPII(self.send_command)
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
         self.set_ui()
         self.x =0
         self.count = 0
+        self.print_angle = False
 
     def set_ui(self):
 
@@ -34,6 +35,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.camera_open_button = QtWidgets.QPushButton(u'Camera On')
         close_button = QtWidgets.QPushButton(u'Exit')
         test_button = QtWidgets.QPushButton(u'Test')
+        print_angle_button = QtWidgets.QPushButton(u'Print')
         self.camera_display_label = QtWidgets.QLabel()
         self.camera_display_label.setFixedSize(641, 481)
         self.camera_display_label.setAutoFillBackground(False)
@@ -43,6 +45,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         button_layout.addWidget(self.camera_open_button)
         button_layout.addWidget(close_button)
         button_layout.addWidget(test_button)
+        button_layout.addWidget(print_angle_button)
 
         image_layout = QtWidgets.QHBoxLayout()
         image_layout.addWidget(self.camera_display_label)
@@ -57,8 +60,9 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera.timeout.connect(self.show_camera)
         close_button.clicked.connect(self.close)
         test_button.clicked.connect(self.send_test_command)
+        print_angle_button.clicked.connect(self.print_data)
         self.pose_model.model_signal.connect(coordinatograph.update_value)
-        # self.pose_model.model_signal.connect(self.mpii.cal_limb_angle)
+        self.pose_model.model_signal.connect(self.mpii.handle_pose_data)
 
         # Launch the layout
         self.setLayout(main_layout)
@@ -92,10 +96,19 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.pose_model.enqueue_image(camera_image)
 
     def send_command(self, angles:np.ndarray):
-        self.ble_manager.write(b'\x00%b\x00' % angles.tobytes())
+        if self.print_angle:
+            self.print_angle = False
+            for i in range(len(angles)):
+                print('%s: %d' % (MPII.angle_labels[i], angles[i]))
+
+            self.ble_manager.write(b'\x00%b' % angles[:2].tobytes())
+
+    def print_data(self):
+        self.print_angle = True
 
     def send_test_command(self):
         self.ble_manager.write(b'\x00%b\x00' % 'Test'.encode())
+        pass
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()

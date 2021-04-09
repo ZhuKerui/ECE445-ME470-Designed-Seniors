@@ -1,20 +1,18 @@
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
 #include <Arduino.h>
 
 #include <keebot_ble.h>
-#include "keebot_uart.h"
+#include <keebot_uart.h>
 
 uint8_t txValue = 0;
 
 void setup() {
     Serial.begin(115200);
+
+    // Setup BLE and start boardcasting
     Keebot_BLE::start("Keebot");
     Keebot_BLE::start_broadcasting();
-
-    // setup_serial_read();
+    // Setup serial read
+    setup_serial_read();
 }
 
 void loop() {
