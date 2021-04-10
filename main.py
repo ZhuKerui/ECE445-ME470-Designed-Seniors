@@ -101,7 +101,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             for i in range(len(angles)):
                 print('%s: %d' % (MPII.angle_labels[i], angles[i]))
 
-            self.ble_manager.write(b'\x00%b' % angles[:2].tobytes())
+            self.ble_manager.write(b'\x00%b' % angles[:4].tobytes())
 
     def print_data(self):
         self.print_angle = True

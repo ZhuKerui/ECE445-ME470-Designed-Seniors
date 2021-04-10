@@ -50,6 +50,36 @@ pip install pexpect
 pip install pygatt
 ```
 
+---
+
+## Embedding Environment Setup
+
+Although Arduino IDE is capable for this project, its lack of auto-completion and syntax highlighting makes coding experience less enjoyable. 
+To have a more pleasant coding experience, and more importantly, to write codes that are clearly structuralized and extensible to many devices 
+(Arduino UNO, ESP32 board, ...), I decided to write the control code in c++ in vscode, with the help of extension **PlatformIO**.
+
+### Install PlatformIO extension in VSCode
+
+Search "PlatformIO" in VSCode shop and click "install" to install it. The icon of the extension looks like this:
+
+![image](./img/platformIO.png)
+
+### Initialize PlatformIO Workspace
+
+PlatformIO can support the framework for many different devices, like ESP32 board and Arduino UNO. It downloads libraries for different devices and 
+manages the libraries seperately. The workspace of a PlatformIO project can be setup very easily with a *platformio.ini* file. The PlatformIO will 
+automatically download the libraries needed according to the *platformio.ini* file.
+
+Click the PlatformIO icon in the toolbar on the left and then click the "**Open**" under the "**PIO Home**" section. This will open the PlatformIO 
+home page. Click "**Open Project**" and select the "**arduino**" directory in this project, which contains a *platformio.ini* file. The workspace 
+should be setup in a minute if it is the first time you use it.
+
+### Compile and Upload Code
+
+At the bottom of the VSCode, you can now see two buttons ![buttons](./img/platformio_button.png).
+
+Click the left one to compile the code and click the right one to upload the code to the board.
+
 ## Demo
 To demo the project, type
 

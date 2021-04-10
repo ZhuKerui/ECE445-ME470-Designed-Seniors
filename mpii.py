@@ -90,6 +90,7 @@ class MPII:
         project_vec /= np.linalg.norm(project_vec)
         theta_2 = np.arccos(project_vec.dot(init_axis[2]))
         theta_3 = np.arccos(lower_limb.dot(axis[0]))
+        theta_3 = 130 if theta_3 > 130 else theta_3
 
         return (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)
 
