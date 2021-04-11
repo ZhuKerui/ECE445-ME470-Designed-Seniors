@@ -101,14 +101,15 @@ class Ui_MainWindow(QtWidgets.QWidget):
             for i in range(len(angles)):
                 print('%s: %d' % (MPII.angle_labels[i], angles[i]))
 
-            self.ble_manager.write(b'\x00%b' % angles[:4].tobytes())
+            self.ble_manager.write(b'\x00%b' % angles.tobytes())
 
     def print_data(self):
         self.print_angle = True
 
     def send_test_command(self):
-        self.ble_manager.write(b'\x00%b\x00' % 'Test'.encode())
-        pass
+        test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1], dtype=np.uint8)
+        # test_data = np.array([90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90], dtype=np.uint8)
+        self.ble_manager.write(b'\x00%b' % test_data.tobytes())
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()
