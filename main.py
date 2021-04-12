@@ -12,6 +12,7 @@ from graph import Coordinatograph
 from live_demo import Live_Model
 from mpii import MPII
 from ble import BLE_Driver, device_addr, read_uuid, write_uuid
+from time import time
 
 class Ui_MainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
@@ -19,7 +20,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
-        self.ble_manager.start()
+        # self.ble_manager.start()
         self.mpii = MPII(self.send_command)
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
@@ -77,7 +78,12 @@ class Ui_MainWindow(QtWidgets.QWidget):
             else:
                 self.timer_camera.start(30)
                 self.camera_open_button.setText(u'Camera off')
+                self.start_time = time()
+                self.temp_list = []
         else:
+            print(time() - self.start_time)
+            # np.array(self.temp_list)
+            print(len(self.temp_list))
             self.timer_camera.stop()
             self.camera_manager.release()
             self.camera_display_label.clear()
@@ -96,6 +102,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         self.pose_model.enqueue_image(camera_image)
 
     def send_command(self, angles:np.ndarray):
+        self.temp_list.append(angles)
         if self.print_angle:
             self.print_angle = False
             for i in range(len(angles)):
@@ -108,8 +115,9 @@ class Ui_MainWindow(QtWidgets.QWidget):
 
     def send_test_command(self):
         test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1], dtype=np.uint8)
-        # test_data = np.array([90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
+        for i in range(len(test_data)):
+            print('%s: %d' % (MPII.angle_labels[i], test_data[i]))
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()
@@ -130,7 +138,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
             if self.timer_camera.isActive():
                 self.timer_camera.stop()
             self.pose_model.stop()
-            self.ble_manager.stop()
+            # self.ble_manager.stop()
             event.accept()
 
 

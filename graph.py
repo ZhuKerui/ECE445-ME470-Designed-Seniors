@@ -29,8 +29,8 @@ class Coordinatograph(QWidget):
         self.gw.addItem(zgrid)
 
         self.arm = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
-        self.back = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
-        self.leg = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
+        self.back = gl.GLLinePlotItem(color=pg.glColor('b'), width=10., antialias=True)
+        self.leg = gl.GLLinePlotItem(color=pg.glColor('g'), width=10., antialias=True)
         self.gw.addItem(self.arm)
         self.gw.addItem(self.back)
         self.gw.addItem(self.leg)
