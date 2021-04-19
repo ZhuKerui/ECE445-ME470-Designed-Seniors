@@ -1,5 +1,6 @@
 import numpy as np
 from util import Rodrigues, normalize
+import time
 
 class MPII:
     r_ankle = 0
@@ -58,6 +59,32 @@ class MPII:
                                 self.l_elbow, self.l_wrist, self.spine, self.spine, 
                                 self.l_hip, self.r_knee, self.r_ankle, self.l_hip, 
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
+        # denoise
+        self.hist_len = 2
+        self.angle_raw_hist = np.zeros((self.hist_len, 16))
+        self.angle_hist = np.zeros((self.hist_len, 16))
+        self.time_log = np.zeros((self.hist_len))
+        self.d_lim = [10, 10, 10, 10, 
+                      10, 10, 10, 10,
+                      10, 10, 10, 10,
+                      10, 10, 10, 10]
+        self.v_lim = [10, 10, 10, 10, 
+                      10, 10, 10, 10,
+                      10, 10, 10, 10,
+                      10, 10, 10, 10]   
+
+        self.std_pose = np.array([[0., 2., 2.], [0., 1., 2.], [0., 0., 2.], 
+                                [2., 0., 2.], [2., 1., 2.], [2., 2., 2.], 
+                                [1., 0., 2.], [1., 0., 3.], [1., 0., 4.], [1., 0., 5.], 
+                                [0., 2., 4.], [0., 1., 4.], [0., 0., 4.], 
+                                [2., 0., 4.], [2., 1., 4.], [2., 2., 4.]])
+
+        self.std_r_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])
+        self.std_l_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])
+        self.std_r_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])
+        self.std_l_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])
+        self.init_limb_vecs = self.gen_vecs(self.std_pose)
+
         self.callback = callback
 
     def gen_vecs(self, points:np.ndarray):
@@ -89,7 +116,7 @@ class MPII:
         project_vec = lower_limb - (lower_limb.dot(axis[0]) * axis[0])
         project_vec /= np.linalg.norm(project_vec)
         theta_2 = np.arccos(project_vec.dot(init_axis[2]))
-        theta_3 = np.arccos(lower_limb.dot(axis[0]))
+        theta_3 = np.arccos(lower_limb.dot(axis[1]))
         theta_3 = 130 if theta_3 > 130 else theta_3
 
         return (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)
@@ -102,6 +129,73 @@ class MPII:
         r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis)
         l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis)
         angle = np.hstack([r_arm_angle, l_arm_angle, r_hip_angle, l_hip_angle])
+        angle = self.servo_angle_denoise(angle)
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
         self.callback(angle.astype(np.uint8))
+
+    def servo_angle_denoise(self, angle_list):  
+        # divergence
+        curr_time = time.time()
+        div = np.abs(self.angle_raw_hist - angle_list)
+        if np.sum(div) > 1600:
+            new_angle_list = self.angle_hist[-1]
+            np.delete(self.angle_raw_hist, 0, 0)
+            np.append(self.angle_raw_hist, angle_list)
+            np.delete(self.angle_hist, 0, 0)
+            np.append(self.angle_hist, new_angle_list)
+            np.delete(self.time_log, 0, 0)
+            np.append(self.time_log, curr_time)
+            return new_angle_list
+
+        # velocity
+        new_angle_list = np.zeros(16)
+        vel = (self.angle_hist[-1] - angle_list)
+
+        for i in range(16):
+            if vel[i] > self.v_lim[i]*(curr_time - self.time_log[-1]):
+                new_angle_list[i] = self.angle_hist[-1][i] + self.v_lim[i]
+            elif vel[i] < -self.v_lim[i]*(curr_time - self.time_log[-1]):
+                new_angle_list[i] = self.angle_hist[-1][i] - self.v_lim[i]
+
+        np.delete(self.angle_raw_hist, 0, 0)
+        np.append(self.angle_raw_hist, angle_list)
+        np.delete(self.angle_hist, 0, 0)
+        np.append(self.angle_hist, new_angle_list)
+        np.delete(self.time_log, 0, 0)
+        np.append(self.time_log, curr_time)
+        return new_angle_list
+
+    def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray):
+        limb_vec = init_limb_vec.T
+        axis = init_axis.T
+        R0 = Rodrigues(limb_angles[0], axis[:, 1])
+        limb_vec = np.matmul(R0, limb_vec)
+        axis = np.matmul(R0, axis)
+        R1 = Rodrigues(limb_angles[1], axis[:, 2])
+        limb_vec = np.matmul(R1, limb_vec)
+        axis = np.matmul(R1, axis)
+
+        R2 = Rodrigues(limb_angles[2], axis[:, 1])
+        limb_vec[:, 1] = np.matmul(R2, limb_vec)[:, 1]
+        axis = np.matmul(R2, axis)
+        R3 = Rodrigues(limb_angles[3], axis[:, 0])
+        limb_vec[:, 1] = np.matmul(R3, limb_vec)[:, 1]
+        return limb_vec.T
+
+    def reconstruct_pose_data(self, angles:np.ndarray):
+        reform_angles = angles * np.pi / 180
+        r_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_upperarm_v, self.r_forearm_v]], reform_angles[0:4], self.std_r_arm_axis)
+        l_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_upperarm_v, self.l_forearm_v]], reform_angles[4:8], self.std_l_arm_axis)
+        r_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_thigh_v, self.r_calfbone_v]], reform_angles[8:12], self.std_r_leg_axis)
+        l_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_thigh_v, self.l_calfbone_v]], reform_angles[12:16], self.std_l_leg_axis)
+        denoised_pose = self.std_pose
+        denoised_pose[self.r_elbow] = denoised_pose[self.r_shoulder] + r_arm_vec[0]
+        denoised_pose[self.r_wrist] = denoised_pose[self.r_elbow] + r_arm_vec[1]
+        denoised_pose[self.l_elbow] = denoised_pose[self.l_shoulder] + l_arm_vec[0]
+        denoised_pose[self.l_wrist] = denoised_pose[self.l_elbow] + l_arm_vec[1]
+        denoised_pose[self.r_knee] = denoised_pose[self.r_hip] + r_leg_vec[0]
+        denoised_pose[self.r_ankle] = denoised_pose[self.r_knee] + r_leg_vec[1]
+        denoised_pose[self.l_knee] = denoised_pose[self.l_hip] + l_leg_vec[0]
+        denoised_pose[self.l_ankle] = denoised_pose[self.l_knee] + l_leg_vec[1]
+        return denoised_pose

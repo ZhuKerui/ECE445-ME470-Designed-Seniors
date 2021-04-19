@@ -77,7 +77,7 @@ class Live_Model(QThread):
     opt.dataset = 'mpii'
     opt.lr = 0.001
     opt.load_model = 'pose_model_3d/models/fusion_3d_var.pth'
-    opt.gpus = [0]
+    opt.gpus = [-1]
     opt.resume = False
     opt.exp_id = 'default'
     opt.debug = 0

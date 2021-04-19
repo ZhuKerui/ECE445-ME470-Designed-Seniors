@@ -51,7 +51,7 @@ class Coordinatograph(QWidget):
     def start_plot(self):
         self.pause = False
 
-    def update_value(self, points):
+    def update_value(self, points:np.ndarray):
         if self.pause:
             return
         self.arm.setData(pos=points[self.arm_edges])
