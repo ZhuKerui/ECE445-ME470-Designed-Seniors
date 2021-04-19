@@ -12,18 +12,28 @@ class BLE_Driver:
         self.read_uuid = read_uuid
         self.write_uuid = write_uuid
         self.read_handler = read_handler
+        self.is_alive = False
 
     def start(self):
         self.adapter.start()
-        self.device = self.adapter.connect(self.device_addr, address_type=pygatt.BLEAddressType.random)
+        try:
+            self.device = self.adapter.connect(self.device_addr, address_type=pygatt.BLEAddressType.random)
+        except:
+            self.adapter.stop()
+            self.is_alive = False
+            print('Connection err')
+            return
         self.device.subscribe(self.read_uuid, callback=self.read_handler)
+        self.is_alive = True
 
     def write(self, msg:bytes):
-        self.device.char_write(self.write_uuid, msg)
+        if self.is_alive:
+            self.device.char_write(self.write_uuid, msg)
 
     def stop(self):
-        self.device.disconnect()
-        self.adapter.stop()
+        if self.is_alive:
+            self.device.disconnect()
+            self.adapter.stop()
 
 if __name__ == '__main__':
 

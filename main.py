@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import cv2
 import numpy as np
+import pandas as pd
 
 from camera import Camera_Manager
 from graph import Coordinatograph
@@ -17,36 +18,39 @@ from time import time
 class Ui_MainWindow(QWidget):
     def __init__(self, parent=None):
         super(Ui_MainWindow, self).__init__(parent)
+        # Initialize device managers and main components
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
-        # self.ble_manager.start()
-        self.mpii = MPII(self.process_angle_data)
+        self.ble_manager.start()
+        self.mpii = MPII()
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
         self.set_ui()
         self.imitation_enable = False
         # Debug and Param Adjust stuffs
-        self.count = 0
-        self.denoise = False
-        self.record = False
-        self.threshold = 0
-        self.pose_data_raw = np.array([])
-        self.pose_data_denoise = np.array([])
-        self.angle_data = np.array([])
-        self.record_start_time = time()
-        self.record_list = []
+        self.is_denoise = False                 # Whether denoise is enabled
+        self.is_record = False                  # Whether it is recording
+        self.threshold = 0                      # The threshold value for denoising
+        self.pose_data_raw = np.array([])       # The pose data calculated by the neural network model
+        self.pose_data_denoise = np.array([])   # The pose data reconstructed from denoised data
+        self.angle_data = np.array([])          # The angle data for each servo
+        self.record_start_time = time()         # The starting time of the recording
+        self.record_list = pd.DataFrame(columns=['time']+MPII.angle_labels)   # The recorded angle data
 
     def set_ui(self):
-
-        # Layout elements setup
+        '''
+        Layout elements setup
+        '''
+        # User operations group
         user_group = QGroupBox('User', self)
         user_layout = QHBoxLayout()
         self.camera_open_button = QPushButton(u'Camera On')
         user_layout.addWidget(self.camera_open_button)
         user_group.setLayout(user_layout)
 
+        # Debug operations group
         debug_group = QGroupBox('Debug', self)
         debug_layout = QHBoxLayout()
         self.denoise_button = QPushButton(u'Denoise On')
@@ -59,6 +63,7 @@ class Ui_MainWindow(QWidget):
         debug_layout.addWidget(self.record_button)
         debug_group.setLayout(debug_layout)
 
+        # Parameter adjustment operations group
         param_group = QGroupBox('Param', self)
         param_layout = QHBoxLayout()
         self.threshold_input = QLineEdit()
@@ -67,11 +72,13 @@ class Ui_MainWindow(QWidget):
         param_layout.addWidget(self.threshold_input)
         param_group.setLayout(param_layout)
 
+        # General operations layout
         operation_layout = QVBoxLayout()
         operation_layout.addWidget(user_group)
         operation_layout.addWidget(debug_group)
         operation_layout.addWidget(param_group)
         
+        # Visual demostration layout
         image_layout = QHBoxLayout()
         self.camera_display_label = QLabel()
         self.camera_display_label.setFixedSize(641, 481)
@@ -80,6 +87,7 @@ class Ui_MainWindow(QWidget):
         image_layout.addWidget(self.camera_display_label)
         image_layout.addWidget(self.coordinatograph)
 
+        # Main layout of the UI
         main_layout = QVBoxLayout()
         main_layout.addLayout(image_layout)
         main_layout.addLayout(operation_layout)
@@ -93,12 +101,16 @@ class Ui_MainWindow(QWidget):
         set_threshold_button.clicked.connect(self.set_threshold_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
         self.pose_model.model_signal.connect(self.process_pose_data)
+        self.mpii.mpii_signal.connect(self.process_angle_data)
 
         # Launch the layout
         self.setLayout(main_layout)
         self.setWindowTitle(u'Keebot Demo')
 
     def camera_open_button_click(self):
+        '''
+        Turn on/off the camera
+        '''
         if self.timer_camera.isActive() == False:
             flag = self.camera_manager.open(self.CAM_NUM)
             if flag == False:
@@ -107,6 +119,7 @@ class Ui_MainWindow(QWidget):
             else:
                 self.timer_camera.start(30)
                 self.camera_open_button.setText(u'Camera off')
+                self.imitation_enable = True    # Enable the imitation
         else:
             self.timer_camera.stop()
             self.camera_manager.release()
@@ -114,14 +127,23 @@ class Ui_MainWindow(QWidget):
             self.camera_open_button.setText(u'Camera on')
 
     def denoise_button_click(self):
+        '''
+        Turn on/off the denoise
+        '''
         self.denoise = not self.denoise
         self.denoise_button.setText('Denoise Off' if self.denoise else 'Denoise On')
 
     def send_test_command(self):
+        '''
+        Send pre-defined test command
+        '''
         test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
 
     def print_data(self):
+        '''
+        Print the present raw pose data and the denoised angle data to the terminal
+        '''
         print('Raw Pose Data:')
         for i in range(len(self.pose_data_raw)):
             print('%s: %d' % (MPII.point_labels[i], self.pose_data_raw[i]))
@@ -130,19 +152,20 @@ class Ui_MainWindow(QWidget):
             print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
 
     def record_button_click(self):
+        '''
+        Turn on/off the recording
+        '''
         self.record = not self.record
         if self.record:
             self.record_button.setText('Record Off')
             self.record_start_time = time()
-            self.record_list = []
+            self.record_list.drop(self.record_list.index, inplace=True)
         else:
-            print(time() - self.record_start_time)
             self.record_button.setText('Record On')
-            print(len(self.record_list))
+            self.record_list.to_csv('temp.csv', index=False)
 
     def set_threshold_button_click(self):
         self.threshold = float(self.threshold_input.text())
-        print(self.threshold)
 
     def show_camera(self):
         camera_image = self.camera_manager.get_camera_image()
@@ -163,7 +186,9 @@ class Ui_MainWindow(QWidget):
     def process_angle_data(self, angles:np.ndarray):
         if self.record:
             # Record the time stamp and angle data
-            self.record_list.append((time() - self.record_start_time, angles))
+            new_data = {MPII.angle_labels[i] : angles[i] for i in range(16)}
+            new_data['time'] = time() - self.record_start_time
+            self.record_list.append(pd.DataFrame(new_data), ignore_index=True)
 
         if self.denoise:
             # Calculate the reconstructed pose data
@@ -194,7 +219,7 @@ class Ui_MainWindow(QWidget):
             if self.timer_camera.isActive():
                 self.timer_camera.stop()
             self.pose_model.stop()
-            # self.ble_manager.stop()
+            self.ble_manager.stop()
             event.accept()
 
 

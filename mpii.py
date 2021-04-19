@@ -1,6 +1,7 @@
 import numpy as np
 from util import Rodrigues, normalize
 import time
+from PyQt5.QtCore import pyqtSignal
 
 class MPII:
     r_ankle = 0
@@ -50,16 +51,20 @@ class MPII:
                     'r_leg_0', 'r_leg_1', 'r_leg_2', 'r_leg_3', 
                     'l_leg_0', 'l_leg_1', 'l_leg_2', 'l_lge_3']
 
-    def __init__(self, callback):
+    def __init__(self):
+        # The signal for reconstruction accomplishment
+        self.mpii_signal = pyqtSignal(np.ndarray)
+        # Predefine the indices of the starting points for the vectors
         self.vec_start = np.array([self.neck, self.r_shoulder, self.r_elbow, self.neck, 
                                     self.l_shoulder, self.l_elbow, self.neck, self.pelvis, 
                                     self.pelvis, self.r_hip, self.r_knee, self.pelvis, 
                                     self.l_hip, self.l_knee], dtype=np.uint8)
+        # Predefine the indices of the ending points for the vectors
         self.vec_end = np.array([self.r_shoulder, self.r_elbow, self.r_wrist, self.l_shoulder, 
                                 self.l_elbow, self.l_wrist, self.spine, self.spine, 
                                 self.l_hip, self.r_knee, self.r_ankle, self.l_hip, 
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
-        # denoise
+        # Denoise components
         self.hist_len = 2
         self.angle_raw_hist = np.zeros((self.hist_len, 16))
         self.angle_hist = np.zeros((self.hist_len, 16))
@@ -73,24 +78,25 @@ class MPII:
                       10, 10, 10, 10,
                       10, 10, 10, 10]   
 
-        self.std_pose = np.array([[0., 2., 2.], [0., 1., 2.], [0., 0., 2.], 
+        # Components for visualizing the denoised pose
+        self.std_pose = np.array([[0., 2., 2.], [0., 1., 2.], [0., 0., 2.],             # The standard (or initial) position for the joints
                                 [2., 0., 2.], [2., 1., 2.], [2., 2., 2.], 
                                 [1., 0., 2.], [1., 0., 3.], [1., 0., 4.], [1., 0., 5.], 
                                 [0., 2., 4.], [0., 1., 4.], [0., 0., 4.], 
                                 [2., 0., 4.], [2., 1., 4.], [2., 2., 4.]])
-
-        self.std_r_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])
-        self.std_l_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])
-        self.std_r_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])
-        self.std_l_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])
-        self.init_limb_vecs = self.gen_vecs(self.std_pose)
-
-        self.callback = callback
+        self.init_limb_vecs = self.gen_vecs(self.std_pose)                              # The standard (or initial) vector for each part
+        self.std_r_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The standard (or initial) axises for right arm
+        self.std_l_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The standard (or initial) axises for left arm
+        self.std_r_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The standard (or initial) axises for right leg
+        self.std_l_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The standard (or initial) axises for left leg
 
     def gen_vecs(self, points:np.ndarray):
         return normalize(points[self.vec_end] - points[self.vec_start])
 
     def gen_init_axis(self, vecs:np.ndarray):
+        '''
+        Generate the initial axis for each limb based on the pose data
+        '''
         shoulder_x = vecs[self.upperspine_v]
         r_shoulder_y, l_shoulder_y = np.cross(vecs[[self.r_shoulder_v, self.l_shoulder_v]], shoulder_x)
         r_shoulder_z, l_shoulder_z = np.cross(shoulder_x, [r_shoulder_y, l_shoulder_y])
@@ -132,7 +138,7 @@ class MPII:
         angle = self.servo_angle_denoise(angle)
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
-        self.callback(angle.astype(np.uint8))
+        self.mpii_signal.emit(angle.astype(np.uint8))
 
     def servo_angle_denoise(self, angle_list):  
         # divergence
@@ -167,35 +173,34 @@ class MPII:
         return new_angle_list
 
     def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray):
+        # Transpose the limb vectors and axis vectors for the convenience of matrix multiplication
         limb_vec = init_limb_vec.T
         axis = init_axis.T
+        # Calculate the rotation matrix for each servo and rotate the vectors for limb and axis
         R0 = Rodrigues(limb_angles[0], axis[:, 1])
-        limb_vec = np.matmul(R0, limb_vec)
+        limb_vec = np.matmul(R0, limb_vec) # For upper part and lower part
         axis = np.matmul(R0, axis)
         R1 = Rodrigues(limb_angles[1], axis[:, 2])
-        limb_vec = np.matmul(R1, limb_vec)
+        limb_vec = np.matmul(R1, limb_vec) # For upper part and lower part
         axis = np.matmul(R1, axis)
 
         R2 = Rodrigues(limb_angles[2], axis[:, 1])
-        limb_vec[:, 1] = np.matmul(R2, limb_vec)[:, 1]
+        limb_vec[:, 1] = np.matmul(R2, limb_vec)[:, 1] # For lower part only
         axis = np.matmul(R2, axis)
         R3 = Rodrigues(limb_angles[3], axis[:, 0])
-        limb_vec[:, 1] = np.matmul(R3, limb_vec)[:, 1]
+        limb_vec[:, 1] = np.matmul(R3, limb_vec)[:, 1] # For lower part only
+        # Transpose the limb vectors back and return the vectors
         return limb_vec.T
 
     def reconstruct_pose_data(self, angles:np.ndarray):
-        reform_angles = angles * np.pi / 180
+        reform_angles = angles * np.pi / 180 # Reform the angle from degree to radian
+        # Calculate the vectors for each limb
         r_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_upperarm_v, self.r_forearm_v]], reform_angles[0:4], self.std_r_arm_axis)
         l_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_upperarm_v, self.l_forearm_v]], reform_angles[4:8], self.std_l_arm_axis)
         r_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_thigh_v, self.r_calfbone_v]], reform_angles[8:12], self.std_r_leg_axis)
         l_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_thigh_v, self.l_calfbone_v]], reform_angles[12:16], self.std_l_leg_axis)
-        denoised_pose = self.std_pose
-        denoised_pose[self.r_elbow] = denoised_pose[self.r_shoulder] + r_arm_vec[0]
-        denoised_pose[self.r_wrist] = denoised_pose[self.r_elbow] + r_arm_vec[1]
-        denoised_pose[self.l_elbow] = denoised_pose[self.l_shoulder] + l_arm_vec[0]
-        denoised_pose[self.l_wrist] = denoised_pose[self.l_elbow] + l_arm_vec[1]
-        denoised_pose[self.r_knee] = denoised_pose[self.r_hip] + r_leg_vec[0]
-        denoised_pose[self.r_ankle] = denoised_pose[self.r_knee] + r_leg_vec[1]
-        denoised_pose[self.l_knee] = denoised_pose[self.l_hip] + l_leg_vec[0]
-        denoised_pose[self.l_ankle] = denoised_pose[self.l_knee] + l_leg_vec[1]
+        denoised_pose = self.std_pose # Copy from the initial standard pose
+        # Modify the points at the limbs based on the above vectors
+        denoised_pose[[self.r_elbow, self.l_elbow, self.r_knee, self.l_knee]] = denoised_pose[[self.r_shoulder, self.l_shoulder, self.r_hip, self.l_hip]] + np.array([r_arm_vec[0], l_arm_vec[0], r_leg_vec[0], l_leg_vec[0]])
+        denoised_pose[[self.r_wrist, self.l_wrist, self.r_ankle, self.l_ankle]] = denoised_pose[[self.r_elbow, self.l_elbow, self.r_knee, self.l_knee]] + np.array([r_arm_vec[1], l_arm_vec[1], r_leg_vec[1], l_leg_vec[1]])
         return denoised_pose
