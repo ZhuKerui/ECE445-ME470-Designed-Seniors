@@ -28,9 +28,13 @@ class Coordinatograph(QWidget):
         zgrid.translate(0,0,-10)
         self.gw.addItem(zgrid)
 
+        self.r_arm = gl.GLLinePlotItem(color=pg.glColor('g'), width=10., antialias=True)
+        self.l_arm = gl.GLLinePlotItem(color=pg.glColor('b'), width=10., antialias=True)
         self.arm = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
-        self.back = gl.GLLinePlotItem(color=pg.glColor('b'), width=10., antialias=True)
-        self.leg = gl.GLLinePlotItem(color=pg.glColor('g'), width=10., antialias=True)
+        self.back = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
+        self.leg = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
+        self.gw.addItem(self.r_arm)
+        self.gw.addItem(self.l_arm)
         self.gw.addItem(self.arm)
         self.gw.addItem(self.back)
         self.gw.addItem(self.leg)
@@ -54,7 +58,10 @@ class Coordinatograph(QWidget):
     def update_value(self, points:np.ndarray):
         if self.pause:
             return
-        self.arm.setData(pos=points[self.arm_edges])
+        self.r_arm.setData(pos=points[[MPII.r_wrist, MPII.r_elbow, MPII.r_shoulder]])
+        self.l_arm.setData(pos=points[[MPII.l_wrist, MPII.l_elbow, MPII.l_shoulder]])
+        self.arm.setData(pos=points[[MPII.r_shoulder, MPII.neck, MPII.l_shoulder]])
+        # self.arm.setData(pos=points[self.arm_edges])
         self.back.setData(pos=points[self.back_edges])
         self.leg.setData(pos=points[self.leg_edges])
  

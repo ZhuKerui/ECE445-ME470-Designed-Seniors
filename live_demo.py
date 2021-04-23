@@ -68,7 +68,9 @@ class Live_Model(QThread):
     pred = get_preds(out['hm'].detach().cpu().numpy())[0]
     pred = transform_preds(pred, c, s, (self.opt.output_w, self.opt.output_h))
     pred_3d = get_preds_3d(out['hm'].detach().cpu().numpy(), out['depth'].detach().cpu().numpy())[0]
-    self.model_signal.emit(np.matmul(pred_3d.reshape(-1, 3), self.transform_matrix))
+    pred_3d = np.matmul(pred_3d.reshape(-1, 3), self.transform_matrix)
+    pred_3d[:, :2] = - pred_3d[:, :2]
+    self.model_signal.emit(pred_3d)
     
   def generate_demo_opt(self):
     parser = argparse.ArgumentParser()

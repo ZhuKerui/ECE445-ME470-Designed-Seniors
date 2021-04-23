@@ -1,7 +1,6 @@
 import numpy as np
 from util import Rodrigues, normalize
 import time
-from PyQt5.QtCore import pyqtSignal
 
 class MPII:
     r_ankle = 0
@@ -36,6 +35,11 @@ class MPII:
     l_thigh_v = 12
     l_calfbone_v = 13
 
+    RIGHT_ARM = 0
+    LEFT_ARM = 1
+    RIGHT_LEG = 2
+    LEFT_LEG = 3
+
     point_labels = ['r_ankle', 'r_knee', 'r_hip', 'l_hip', 
                     'l_knee', 'l_ankle', 'pelvis', 'spine', 
                     'neck', 'head', 'r_wrist', 'r_elbow', 
@@ -51,9 +55,8 @@ class MPII:
                     'r_leg_0', 'r_leg_1', 'r_leg_2', 'r_leg_3', 
                     'l_leg_0', 'l_leg_1', 'l_leg_2', 'l_lge_3']
 
-    def __init__(self):
-        # The signal for reconstruction accomplishment
-        self.mpii_signal = pyqtSignal(np.ndarray)
+    def __init__(self, callback):
+        self.callback = callback
         # Predefine the indices of the starting points for the vectors
         self.vec_start = np.array([self.neck, self.r_shoulder, self.r_elbow, self.neck, 
                                     self.l_shoulder, self.l_elbow, self.neck, self.pelvis, 
@@ -66,7 +69,7 @@ class MPII:
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
         # Denoise components
         self.hist_len = 2
-        self.angle_raw_hist = np.zeros((self.hist_len, 16))
+        self.angle_raw_history = np.zeros((self.hist_len, 16))
         self.angle_hist = np.zeros((self.hist_len, 16))
         self.time_log = np.zeros((self.hist_len))
         self.d_lim = [10, 10, 10, 10, 
@@ -79,16 +82,16 @@ class MPII:
                       10, 10, 10, 10]   
 
         # Components for visualizing the denoised pose
-        self.std_pose = np.array([[0., 2., 2.], [0., 1., 2.], [0., 0., 2.],             # The standard (or initial) position for the joints
-                                [2., 0., 2.], [2., 1., 2.], [2., 2., 2.], 
+        self.std_pose = np.array([[2., 2., 2.], [2., 1., 2.], [2., 0., 2.],             # The standard (or initial) position for the joints
+                                [0., 0., 2.], [0., 1., 2.], [0., 2., 2.], 
                                 [1., 0., 2.], [1., 0., 3.], [1., 0., 4.], [1., 0., 5.], 
-                                [0., 2., 4.], [0., 1., 4.], [0., 0., 4.], 
-                                [2., 0., 4.], [2., 1., 4.], [2., 2., 4.]])
+                                [2., 2., 4.], [2., 1., 4.], [2., 0., 4.], 
+                                [0., 0., 4.], [0., 1., 4.], [0., 2., 4.]])
         self.init_limb_vecs = self.gen_vecs(self.std_pose)                              # The standard (or initial) vector for each part
-        self.std_r_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The standard (or initial) axises for right arm
-        self.std_l_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The standard (or initial) axises for left arm
-        self.std_r_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The standard (or initial) axises for right leg
-        self.std_l_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The standard (or initial) axises for left leg
+        self.rot_r_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The initial rotation axises for right arm
+        self.rot_l_arm_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The initial rotation axises for left arm
+        self.rot_r_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])     # The initial rotation axises for right leg
+        self.rot_l_leg_axis = np.array([[0., 0., -1.], [0., 1., 0.], [-1., 0., 0.]])    # The initial rotation axises for left leg
 
     def gen_vecs(self, points:np.ndarray):
         return normalize(points[self.vec_end] - points[self.vec_start])
@@ -100,29 +103,31 @@ class MPII:
         shoulder_x = vecs[self.upperspine_v]
         r_shoulder_y, l_shoulder_y = np.cross(vecs[[self.r_shoulder_v, self.l_shoulder_v]], shoulder_x)
         r_shoulder_z, l_shoulder_z = np.cross(shoulder_x, [r_shoulder_y, l_shoulder_y])
-        l_shoulder_y = - l_shoulder_y # Inverse the direction of y axis for the left side
+        l_shoulder_y = - l_shoulder_y # Inverse the direction of y axis for the left side, make it left-hand coordinate
         
         hip_x = - vecs[self.lumbarspine_v]
-        r_hip_y, l_hip_y = np.cross(vecs[[self.r_hipbone_v, self.l_hipbone_v]], hip_x)
+        r_hip_y, l_hip_y = np.cross(hip_x, vecs[[self.r_hipbone_v, self.l_hipbone_v]]) # The leg's y direction is the opposite of arm's
         r_hip_z, l_hip_z = np.cross(hip_x, [r_hip_y, l_hip_y])
-        l_hip_y = - l_hip_y # Inverse the direction of y axis for the left side
+        l_hip_y = - l_hip_y # Inverse the direction of y axis for the left side, make it left-hand coordinate
         return normalize(np.array([shoulder_x, r_shoulder_y, r_shoulder_z, shoulder_x, l_shoulder_y, l_shoulder_z, hip_x, r_hip_y, r_hip_z, hip_x, l_hip_y, l_hip_z])).reshape(4,3,3)
 
-    def cal_limb_angle(self, upper_limb:np.ndarray, lower_limb:np.ndarray, init_axis:np.ndarray):
-        project_vec = upper_limb - (upper_limb.dot(init_axis[1]) * init_axis[1])
+    def cal_limb_angle(self, upper_limb:np.ndarray, lower_limb:np.ndarray, init_axis:np.ndarray, limb_id:int):
+        axis = init_axis.T
+        project_vec = upper_limb - (upper_limb.dot(axis[:, 1]) * axis[:, 1])
         project_vec /= np.linalg.norm(project_vec)
-        theta_0 = np.arccos(project_vec.dot(init_axis[0]))
-        theta_1 = np.arccos(upper_limb.dot(init_axis[1]))
-        axis = init_axis
-        R1 = Rodrigues(theta_0, axis[1])
-        axis = np.matmul(R1, axis.T).T
-        R2 = Rodrigues(theta_1, axis[2])
-        axis = np.matmul(R2, axis.T).T
+        theta_0 = np.arccos(project_vec.dot(axis[:, 0]))
+        theta_1 = np.arccos(upper_limb.dot(axis[:, 1]))
+        rot_axis = axis[:, 1] if limb_id % 2 == 1 else -axis[:, 1]
+        R1 = Rodrigues(theta_0, rot_axis)
+        axis = np.matmul(R1, axis)
+        rot_axis = axis[:, 2] if limb_id % 2 == 1 else -axis[:, 2]
+        R2 = Rodrigues(theta_1, rot_axis)
+        axis = np.matmul(R2, axis)
 
-        project_vec = lower_limb - (lower_limb.dot(axis[0]) * axis[0])
+        project_vec = lower_limb - (lower_limb.dot(axis[:, 1]) * axis[:, 1])
         project_vec /= np.linalg.norm(project_vec)
-        theta_2 = np.arccos(project_vec.dot(init_axis[2]))
-        theta_3 = np.arccos(lower_limb.dot(axis[1]))
+        theta_2 = np.arccos(project_vec.dot(axis[:, 2]))
+        theta_3 = np.arccos(lower_limb.dot(axis[:, 1]))
         theta_3 = 130 if theta_3 > 130 else theta_3
 
         return (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)
@@ -130,24 +135,25 @@ class MPII:
     def handle_pose_data(self, points:np.ndarray):
         vecs = self.gen_vecs(points)
         r_shoulder_axis, l_shoulder_axis, r_hip_axis, l_hip_axis = self.gen_init_axis(vecs)
-        r_arm_angle = self.cal_limb_angle(vecs[self.r_upperarm_v], vecs[self.r_forearm_v], r_shoulder_axis)
-        l_arm_angle = self.cal_limb_angle(vecs[self.l_upperarm_v], vecs[self.l_forearm_v], l_shoulder_axis)
-        r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis)
-        l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis)
+        r_arm_angle = self.cal_limb_angle(vecs[self.r_upperarm_v], vecs[self.r_forearm_v], r_shoulder_axis, self.RIGHT_ARM)
+        l_arm_angle = self.cal_limb_angle(vecs[self.l_upperarm_v], vecs[self.l_forearm_v], l_shoulder_axis, self.LEFT_ARM)
+        r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis, self.RIGHT_LEG)
+        l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis, self.LEFT_LEG)
         angle = np.hstack([r_arm_angle, l_arm_angle, r_hip_angle, l_hip_angle])
-        angle = self.servo_angle_denoise(angle)
+        # angle = self.servo_angle_denoise(angle)
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
-        self.mpii_signal.emit(angle.astype(np.uint8))
+        self.callback(angle.astype(np.uint8))
 
-    def servo_angle_denoise(self, angle_list):  
+
+    def servo_angle_denoise(self, angle_list:np.ndarray):  
         # divergence
         curr_time = time.time()
-        div = np.abs(self.angle_raw_hist - angle_list)
+        div = np.abs(self.angle_raw_history - angle_list)
         if np.sum(div) > 1600:
             new_angle_list = self.angle_hist[-1]
-            np.delete(self.angle_raw_hist, 0, 0)
-            np.append(self.angle_raw_hist, angle_list)
+            np.delete(self.angle_raw_history, 0, 0)
+            np.append(self.angle_raw_history, angle_list)
             np.delete(self.angle_hist, 0, 0)
             np.append(self.angle_hist, new_angle_list)
             np.delete(self.time_log, 0, 0)
@@ -164,30 +170,37 @@ class MPII:
             elif vel[i] < -self.v_lim[i]*(curr_time - self.time_log[-1]):
                 new_angle_list[i] = self.angle_hist[-1][i] - self.v_lim[i]
 
-        np.delete(self.angle_raw_hist, 0, 0)
-        np.append(self.angle_raw_hist, angle_list)
+        np.delete(self.angle_raw_history, 0, 0)
+        np.append(self.angle_raw_history, angle_list)
         np.delete(self.angle_hist, 0, 0)
         np.append(self.angle_hist, new_angle_list)
         np.delete(self.time_log, 0, 0)
         np.append(self.time_log, curr_time)
         return new_angle_list
 
-    def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray):
+    def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray, limb_id:int):
         # Transpose the limb vectors and axis vectors for the convenience of matrix multiplication
         limb_vec = init_limb_vec.T
         axis = init_axis.T
         # Calculate the rotation matrix for each servo and rotate the vectors for limb and axis
-        R0 = Rodrigues(limb_angles[0], axis[:, 1])
+        rot_axis = axis[:, 1] if limb_id % 2 == 1 else -axis[:, 1]
+        R0 = Rodrigues(limb_angles[0], rot_axis)
         limb_vec = np.matmul(R0, limb_vec) # For upper part and lower part
         axis = np.matmul(R0, axis)
-        R1 = Rodrigues(limb_angles[1], axis[:, 2])
+        rot_axis = axis[:, 2] if limb_id % 2 == 1 else -axis[:, 2]
+        R1 = Rodrigues(limb_angles[1], rot_axis)
         limb_vec = np.matmul(R1, limb_vec) # For upper part and lower part
         axis = np.matmul(R1, axis)
 
-        R2 = Rodrigues(limb_angles[2], axis[:, 1])
+        # print(limb_angles[0:2]/np.pi * 180)
+        # print(init_limb_vec[0])
+        # print(limb_vec[:, 0])
+        rot_axis = axis[:, 1] if limb_id == self.LEFT_ARM or limb_id == self.RIGHT_LEG else -axis[:, 1]
+        R2 = Rodrigues(limb_angles[2], rot_axis)
         limb_vec[:, 1] = np.matmul(R2, limb_vec)[:, 1] # For lower part only
         axis = np.matmul(R2, axis)
-        R3 = Rodrigues(limb_angles[3], axis[:, 0])
+        rot_axis = axis[:, 0] if limb_id % 2 == 0 else -axis[:, 0]
+        R3 = Rodrigues(limb_angles[3], rot_axis)
         limb_vec[:, 1] = np.matmul(R3, limb_vec)[:, 1] # For lower part only
         # Transpose the limb vectors back and return the vectors
         return limb_vec.T
@@ -195,10 +208,10 @@ class MPII:
     def reconstruct_pose_data(self, angles:np.ndarray):
         reform_angles = angles * np.pi / 180 # Reform the angle from degree to radian
         # Calculate the vectors for each limb
-        r_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_upperarm_v, self.r_forearm_v]], reform_angles[0:4], self.std_r_arm_axis)
-        l_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_upperarm_v, self.l_forearm_v]], reform_angles[4:8], self.std_l_arm_axis)
-        r_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_thigh_v, self.r_calfbone_v]], reform_angles[8:12], self.std_r_leg_axis)
-        l_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_thigh_v, self.l_calfbone_v]], reform_angles[12:16], self.std_l_leg_axis)
+        r_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_upperarm_v, self.r_forearm_v]], reform_angles[0:4], self.rot_r_arm_axis, self.RIGHT_ARM)
+        l_arm_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_upperarm_v, self.l_forearm_v]], reform_angles[4:8], self.rot_l_arm_axis, self.LEFT_ARM)
+        r_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.r_thigh_v, self.r_calfbone_v]], reform_angles[8:12], self.rot_r_leg_axis, self.RIGHT_LEG)
+        l_leg_vec = self.cal_limb_vec(self.init_limb_vecs[[self.l_thigh_v, self.l_calfbone_v]], reform_angles[12:16], self.rot_l_leg_axis, self.LEFT_LEG)
         denoised_pose = self.std_pose # Copy from the initial standard pose
         # Modify the points at the limbs based on the above vectors
         denoised_pose[[self.r_elbow, self.l_elbow, self.r_knee, self.l_knee]] = denoised_pose[[self.r_shoulder, self.l_shoulder, self.r_hip, self.l_hip]] + np.array([r_arm_vec[0], l_arm_vec[0], r_leg_vec[0], l_leg_vec[0]])

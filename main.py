@@ -1,5 +1,6 @@
 
 import sys
+import os
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import *
@@ -23,7 +24,7 @@ class Ui_MainWindow(QWidget):
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
         self.ble_manager.start()
-        self.mpii = MPII()
+        self.mpii = MPII(self.process_angle_data)
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
@@ -47,7 +48,11 @@ class Ui_MainWindow(QWidget):
         user_group = QGroupBox('User', self)
         user_layout = QHBoxLayout()
         self.camera_open_button = QPushButton(u'Camera On')
+        choose_image_button = QPushButton('Choose Image')
+        show_std_pose_button = QPushButton('Show Standard')
         user_layout.addWidget(self.camera_open_button)
+        user_layout.addWidget(choose_image_button)
+        user_layout.addWidget(show_std_pose_button)
         user_group.setLayout(user_layout)
 
         # Debug operations group
@@ -94,6 +99,8 @@ class Ui_MainWindow(QWidget):
         
         # Signal connections setup
         self.camera_open_button.clicked.connect(self.camera_open_button_click)
+        choose_image_button.clicked.connect(self.analyze_image_file)
+        show_std_pose_button.clicked.connect(self.show_std_pose)
         self.denoise_button.clicked.connect(self.denoise_button_click)
         test_button.clicked.connect(self.send_test_command)
         print_data_button.clicked.connect(self.print_data)
@@ -101,7 +108,6 @@ class Ui_MainWindow(QWidget):
         set_threshold_button.clicked.connect(self.set_threshold_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
         self.pose_model.model_signal.connect(self.process_pose_data)
-        self.mpii.mpii_signal.connect(self.process_angle_data)
 
         # Launch the layout
         self.setLayout(main_layout)
@@ -126,12 +132,24 @@ class Ui_MainWindow(QWidget):
             self.camera_display_label.clear()
             self.camera_open_button.setText(u'Camera on')
 
+    def analyze_image_file(self):
+        fileName,fileType = QFileDialog.getOpenFileName(None, "choose file", os.getcwd(), "All Files(*)")
+        if not fileName:
+            return
+        temp_image = cv2.imread(fileName)
+        show = cv2.resize(temp_image, (640, 480))
+        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+        self.analyze_image(show)
+
+    def show_std_pose(self):
+        self.coordinatograph.update_value(self.mpii.std_pose)
+
     def denoise_button_click(self):
         '''
         Turn on/off the denoise
         '''
-        self.denoise = not self.denoise
-        self.denoise_button.setText('Denoise Off' if self.denoise else 'Denoise On')
+        self.is_denoise = not self.is_denoise
+        self.denoise_button.setText('Denoise Off' if self.is_denoise else 'Denoise On')
 
     def send_test_command(self):
         '''
@@ -146,17 +164,17 @@ class Ui_MainWindow(QWidget):
         '''
         print('Raw Pose Data:')
         for i in range(len(self.pose_data_raw)):
-            print('%s: %d' % (MPII.point_labels[i], self.pose_data_raw[i]))
-        print('Denoised Angle Data:')
-        for i in range(len(self.angle_data)):
-            print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
+            print(self.pose_data_raw[i])
+        # print('Denoised Angle Data:')
+        # for i in range(len(self.angle_data)):
+        #     print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
 
     def record_button_click(self):
         '''
         Turn on/off the recording
         '''
-        self.record = not self.record
-        if self.record:
+        self.is_record = not self.is_record
+        if self.is_record:
             self.record_button.setText('Record Off')
             self.record_start_time = time()
             self.record_list.drop(self.record_list.index, inplace=True)
@@ -169,6 +187,9 @@ class Ui_MainWindow(QWidget):
 
     def show_camera(self):
         camera_image = self.camera_manager.get_camera_image()
+        self.analyze_image(camera_image)
+
+    def analyze_image(self, camera_image:np.ndarray):
         image_h, image_w = camera_image.shape[0:2]
         showImage = QtGui.QImage(camera_image.data, camera_image.shape[1], camera_image.shape[0], QtGui.QImage.Format_RGB888)
         self.camera_display_label.setPixmap(QtGui.QPixmap.fromImage(showImage))
@@ -184,22 +205,24 @@ class Ui_MainWindow(QWidget):
         self.mpii.handle_pose_data(points)
 
     def process_angle_data(self, angles:np.ndarray):
-        if self.record:
+        self.angle_data = angles
+        if self.is_record:
             # Record the time stamp and angle data
             new_data = {MPII.angle_labels[i] : angles[i] for i in range(16)}
             new_data['time'] = time() - self.record_start_time
             self.record_list.append(pd.DataFrame(new_data), ignore_index=True)
 
-        if self.denoise:
+        if self.is_denoise:
             # Calculate the reconstructed pose data
             self.pose_data_denoise = self.mpii.reconstruct_pose_data(angles)
 
         if self.imitation_enable:
             # Send command if imitation is enabled
-            self.ble_manager.write(b'\x00%b' % angles.tobytes())
+            self.ble_manager.write(b'\x00%b' % self.angle_data.tobytes())
 
         # Update graphic display
-        self.coordinatograph.update_value(self.pose_data_denoise if self.denoise else self.pose_data_raw)
+        self.coordinatograph.update_value(self.pose_data_denoise if self.is_denoise else self.pose_data_raw)
+        # self.coordinatograph.update_value(self.mpii.std_pose)
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()
