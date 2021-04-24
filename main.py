@@ -31,9 +31,7 @@ class Ui_MainWindow(QWidget):
         self.set_ui()
         self.imitation_enable = False
         # Debug and Param Adjust stuffs
-        self.is_denoise = False                 # Whether denoise is enabled
         self.is_record = False                  # Whether it is recording
-        self.threshold = 0                      # The threshold value for denoising
         self.pose_data_raw = np.array([])       # The pose data calculated by the neural network model
         self.pose_data_denoise = np.array([])   # The pose data reconstructed from denoised data
         self.angle_data = np.array([])          # The angle data for each servo
@@ -73,8 +71,12 @@ class Ui_MainWindow(QWidget):
         param_layout = QHBoxLayout()
         self.threshold_input = QLineEdit()
         set_threshold_button = QPushButton('Set Threshold')
+        self.v_lim_input = QLineEdit()
+        set_v_lim_button = QPushButton('Set Velocity Lim')
         param_layout.addWidget(set_threshold_button)
         param_layout.addWidget(self.threshold_input)
+        param_layout.addWidget(set_v_lim_button)
+        param_layout.addWidget(self.v_lim_input)
         param_group.setLayout(param_layout)
 
         # General operations layout
@@ -89,8 +91,10 @@ class Ui_MainWindow(QWidget):
         self.camera_display_label.setFixedSize(641, 481)
         self.camera_display_label.setAutoFillBackground(False)
         self.coordinatograph = Coordinatograph('3D Skeleton Display', '', '', '', '')
+        self.debug_graph = Coordinatograph('3D Skeleton Display', '', '', '', '')
         image_layout.addWidget(self.camera_display_label)
         image_layout.addWidget(self.coordinatograph)
+        image_layout.addWidget(self.debug_graph)
 
         # Main layout of the UI
         main_layout = QVBoxLayout()
@@ -106,6 +110,7 @@ class Ui_MainWindow(QWidget):
         print_data_button.clicked.connect(self.print_data)
         self.record_button.clicked.connect(self.record_button_click)
         set_threshold_button.clicked.connect(self.set_threshold_button_click)
+        set_v_lim_button.clicked.connect(self.set_v_lim_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
         self.pose_model.model_signal.connect(self.process_pose_data)
 
@@ -148,26 +153,27 @@ class Ui_MainWindow(QWidget):
         '''
         Turn on/off the denoise
         '''
-        self.is_denoise = not self.is_denoise
-        self.denoise_button.setText('Denoise Off' if self.is_denoise else 'Denoise On')
+        self.mpii.is_denoise = not self.mpii.is_denoise
+        self.denoise_button.setText('Denoise Off' if self.mpii.is_denoise else 'Denoise On')
 
     def send_test_command(self):
         '''
         Send pre-defined test command
         '''
-        test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1], dtype=np.uint8)
+        test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
 
     def print_data(self):
         '''
         Print the present raw pose data and the denoised angle data to the terminal
         '''
-        print('Raw Pose Data:')
-        for i in range(len(self.pose_data_raw)):
-            print(self.pose_data_raw[i])
-        # print('Denoised Angle Data:')
-        # for i in range(len(self.angle_data)):
-        #     print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
+        # print('Raw Pose Data:')
+        # for i in range(len(self.pose_data_raw)):
+        #     print(self.pose_data_raw[i])
+        print('Denoised Angle Data:')
+        for i in range(len(self.angle_data)):
+            print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
+        print(self.mpii.div)
 
     def record_button_click(self):
         '''
@@ -183,7 +189,11 @@ class Ui_MainWindow(QWidget):
             self.record_list.to_csv('temp.csv', index=False)
 
     def set_threshold_button_click(self):
-        self.threshold = float(self.threshold_input.text())
+        self.mpii.div_lim = float(self.threshold_input.text())
+        print(self.mpii.div_lim)
+
+    def set_v_lim_button_click(self):
+        self.mpii.v_lim = float(self.v_lim_input.text()) * np.ones(16)
 
     def show_camera(self):
         camera_image = self.camera_manager.get_camera_image()
@@ -206,22 +216,24 @@ class Ui_MainWindow(QWidget):
 
     def process_angle_data(self, angles:np.ndarray):
         self.angle_data = angles
+        # Calculate the reconstructed pose data
+        self.pose_data_denoise = self.mpii.reconstruct_pose_data(angles)
+
         if self.is_record:
             # Record the time stamp and angle data
             new_data = {MPII.angle_labels[i] : angles[i] for i in range(16)}
-            new_data['time'] = time() - self.record_start_time
+            new_data['time'] = self.mpii.interval
             self.record_list.append(pd.DataFrame(new_data), ignore_index=True)
 
-        if self.is_denoise:
-            # Calculate the reconstructed pose data
-            self.pose_data_denoise = self.mpii.reconstruct_pose_data(angles)
+        target_time = int(self.mpii.interval * 1000) if self.mpii.interval < 5 else 5000
 
         if self.imitation_enable:
             # Send command if imitation is enabled
-            self.ble_manager.write(b'\x00%b' % self.angle_data.tobytes())
+            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time / 100).tobytes())
 
         # Update graphic display
-        self.coordinatograph.update_value(self.pose_data_denoise if self.is_denoise else self.pose_data_raw)
+        self.coordinatograph.update_value(self.pose_data_raw)
+        self.debug_graph.update_value(self.pose_data_denoise)
         # self.coordinatograph.update_value(self.mpii.std_pose)
 
     def closeEvent(self, event):

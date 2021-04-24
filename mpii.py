@@ -1,6 +1,6 @@
 import numpy as np
 from util import Rodrigues, normalize
-import time
+from time import time
 
 class MPII:
     r_ankle = 0
@@ -68,18 +68,25 @@ class MPII:
                                 self.l_hip, self.r_knee, self.r_ankle, self.l_hip, 
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
         # Denoise components
-        self.hist_len = 2
-        self.angle_raw_history = np.zeros((self.hist_len, 16))
-        self.angle_hist = np.zeros((self.hist_len, 16))
-        self.time_log = np.zeros((self.hist_len))
-        self.d_lim = [10, 10, 10, 10, 
+        self.is_denoise = False                 # Whether denoise is enabled
+        self.hist_len = 3
+        # self.angle_raw_history = np.zeros((self.hist_len, 16))
+        # self.angle_hist = np.zeros((self.hist_len, 16))
+        # self.time_log = np.zeros((self.hist_len))
+        self.velocity_raw_history = np.zeros((self.hist_len, 16))
+        self.last_angle = np.zeros(16)                  # Last sent angle
+        self.last_time = time()
+        self.interval = 1000
+
+        self.div_lim = 10000
+        self.d_lim = np.array([10, 10, 10, 10, 
                       10, 10, 10, 10,
                       10, 10, 10, 10,
-                      10, 10, 10, 10]
-        self.v_lim = [10, 10, 10, 10, 
+                      10, 10, 10, 10], dtype=np.float64)
+        self.v_lim = np.array([10, 10, 10, 10, 
                       10, 10, 10, 10,
                       10, 10, 10, 10,
-                      10, 10, 10, 10]   
+                      10, 10, 10, 10], dtype=np.float64)
 
         # Components for visualizing the denoised pose
         self.std_pose = np.array([[2., 2., 2.], [2., 1., 2.], [2., 0., 2.],             # The standard (or initial) position for the joints
@@ -140,43 +147,52 @@ class MPII:
         r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis, self.RIGHT_LEG)
         l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis, self.LEFT_LEG)
         angle = np.hstack([r_arm_angle, l_arm_angle, r_hip_angle, l_hip_angle])
-        # angle = self.servo_angle_denoise(angle)
+        if self.is_denoise:
+            angle = self.servo_angle_denoise(angle)
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
-        self.callback(angle.astype(np.uint8))
+        self.last_angle = angle
+        self.callback(self.last_angle.astype(np.uint8))
 
 
     def servo_angle_denoise(self, angle_list:np.ndarray):  
         # divergence
-        curr_time = time.time()
-        div = np.abs(self.angle_raw_history - angle_list)
-        if np.sum(div) > 1600:
-            new_angle_list = self.angle_hist[-1]
-            np.delete(self.angle_raw_history, 0, 0)
-            np.append(self.angle_raw_history, angle_list)
-            np.delete(self.angle_hist, 0, 0)
-            np.append(self.angle_hist, new_angle_list)
-            np.delete(self.time_log, 0, 0)
-            np.append(self.time_log, curr_time)
+        curr_time = time()
+        # div = np.abs(self.angle_raw_history - angle_list)
+        # if np.sum(div) > self.div_lim:
+        #     new_angle_list = self.angle_hist[-1]
+        #     np.delete(self.angle_raw_history, 0, 0)
+        #     np.append(self.angle_raw_history, angle_list)
+        #     np.delete(self.angle_hist, 0, 0)
+        #     np.append(self.angle_hist, new_angle_list)
+        #     np.delete(self.time_log, 0, 0)
+        #     np.append(self.time_log, curr_time)
+        #     return new_angle_list
+        self.interval = curr_time - self.last_time
+        self.last_time = curr_time
+
+        velocity = (angle_list - self.last_angle) / self.interval
+        self.div = np.sum(np.abs(self.velocity_raw_history - velocity))
+        self.velocity_raw_history = np.vstack([self.velocity_raw_history[1:], velocity])
+        if self.div <= self.div_lim:
+            new_angle_list = angle_list.copy()
+            v_greater = velocity > self.v_lim
+            v_lower = velocity < - self.v_lim
+            new_angle_list[v_greater] = self.last_angle[v_greater] + (self.v_lim[v_greater] * self.interval)
+            new_angle_list[v_lower] = self.last_angle[v_lower] - (self.v_lim[v_lower] * self.interval)
+
+            # for i in range(16):
+            #     if velocity[i] > self.v_lim[i]:
+            #         new_angle_list[i] = self.last_angle[i] + (self.v_lim[i] * interval)
+            #     elif velocity[i] < -self.v_lim[i]:
+            #         new_angle_list[i] = self.last_angle[i] - (self.v_lim[i] * interval)
+            # np.delete(self.velocity_raw_history, 0, 0)
+            # np.append(self.velocity_raw_history, angle_list)
+            # self.last_angle = new_angle_list
+            # print('%d, %d' % (new_angle_list[0], angle_list[0]))
             return new_angle_list
 
-        # velocity
-        new_angle_list = np.zeros(16)
-        vel = (self.angle_hist[-1] - angle_list)
-
-        for i in range(16):
-            if vel[i] > self.v_lim[i]*(curr_time - self.time_log[-1]):
-                new_angle_list[i] = self.angle_hist[-1][i] + self.v_lim[i]
-            elif vel[i] < -self.v_lim[i]*(curr_time - self.time_log[-1]):
-                new_angle_list[i] = self.angle_hist[-1][i] - self.v_lim[i]
-
-        np.delete(self.angle_raw_history, 0, 0)
-        np.append(self.angle_raw_history, angle_list)
-        np.delete(self.angle_hist, 0, 0)
-        np.append(self.angle_hist, new_angle_list)
-        np.delete(self.time_log, 0, 0)
-        np.append(self.time_log, curr_time)
-        return new_angle_list
+        return self.last_angle
 
     def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray, limb_id:int):
         # Transpose the limb vectors and axis vectors for the convenience of matrix multiplication
@@ -191,10 +207,6 @@ class MPII:
         R1 = Rodrigues(limb_angles[1], rot_axis)
         limb_vec = np.matmul(R1, limb_vec) # For upper part and lower part
         axis = np.matmul(R1, axis)
-
-        # print(limb_angles[0:2]/np.pi * 180)
-        # print(init_limb_vec[0])
-        # print(limb_vec[:, 0])
         rot_axis = axis[:, 1] if limb_id == self.LEFT_ARM or limb_id == self.RIGHT_LEG else -axis[:, 1]
         R2 = Rodrigues(limb_angles[2], rot_axis)
         limb_vec[:, 1] = np.matmul(R2, limb_vec)[:, 1] # For lower part only
