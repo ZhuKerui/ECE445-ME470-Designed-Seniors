@@ -24,7 +24,7 @@ public:
     void init();
     void send_cmd(int len, ...);
     void send_cmd_in_range(int idx_low, int idx_high, int timev);
-    void send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB]);
+    void send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB], int target_time);
 };
 
 #endif

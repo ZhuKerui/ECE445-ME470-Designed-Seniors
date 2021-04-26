@@ -50,6 +50,12 @@ pip install pexpect
 pip install pygatt
 ```
 
+### Additional Modules
+```bash
+pip install pandas
+pip install matplotlib
+```
+
 ---
 
 ## Embedding Environment Setup

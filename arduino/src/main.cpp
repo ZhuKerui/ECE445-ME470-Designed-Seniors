@@ -11,6 +11,7 @@ Serial_Servo serial_servo_2(8, 9, ID_OFFSET_2); // RX,TX
 Serial_Servo serial_servo_3(10, 11, ID_OFFSET_3); // RX,TX
 Bluetooth bluetooth(2, 3); // RX,TX
 int angle[NUM_SERVO];
+int target_time;
 
 float BT_SS_MAP_K[NUM_SERVO], BT_SS_MAP_B[NUM_SERVO];
 
@@ -66,11 +67,12 @@ void loop() {
     if (bluetooth.data_available) {
         bluetooth.data_available = false;
         for (int i = 0; i < NUM_SERVO; i++) {
-            angle[i] = (int)(BT_SS_MAP_K[i] * bluetooth.bt_servo_angle[i] + BT_SS_MAP_B[i]);
+            angle[i] = (int)(BT_SS_MAP_K[i] * bluetooth.bt_msg[i] + BT_SS_MAP_B[i]);
         }
-        serial_servo_0.send_cmd_from_angle(angle);
-        serial_servo_1.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*1));
-        serial_servo_2.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*2));
-        serial_servo_3.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*3));
+        target_time = ((int)bluetooth.bt_msg[BLE_MSG_LENGTH-1]) * 100;
+        serial_servo_0.send_cmd_from_angle(angle, target_time);
+        serial_servo_1.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*1), target_time);
+        serial_servo_2.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*2), target_time);
+        serial_servo_3.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*3), target_time);
     }
 }

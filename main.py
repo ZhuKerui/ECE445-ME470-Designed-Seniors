@@ -225,11 +225,11 @@ class Ui_MainWindow(QWidget):
             new_data['time'] = self.mpii.interval
             self.record_list.append(pd.DataFrame(new_data), ignore_index=True)
 
-        target_time = int(self.mpii.interval * 1000) if self.mpii.interval < 5 else 5000
+        target_time = np.uint8(self.mpii.interval * 10) if self.mpii.interval < 5 else 50
 
         if self.imitation_enable:
             # Send command if imitation is enabled
-            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time / 100).tobytes())
+            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time).tobytes())
 
         # Update graphic display
         self.coordinatograph.update_value(self.pose_data_raw)

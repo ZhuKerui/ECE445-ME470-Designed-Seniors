@@ -13,18 +13,15 @@ void Bluetooth::read_data() {
 
     if(bluetooth_port.available() > 0) {
         delay(15);
-        // Serial.println("fsfd");
-        
-        uint8_t angle = (uint8_t) bluetooth_port.read();
-        if (angle == 0) {
+        uint8_t data = (uint8_t) bluetooth_port.read();
+        if (data == 0) {
             data_available = true;
-            for (int i = 0; i < NUM_SERVO; i++) {
-                angle = (uint8_t) bluetooth_port.read();
-                if (angle >= BT_LOW && angle <= BT_HIGH[i]) {
-                    bt_servo_angle[i] = angle;
+            for (int i = 0; i < BLE_MSG_LENGTH; i++) {
+                data = (uint8_t) bluetooth_port.read();
+                if (data >= BT_LOW && data <= BT_HIGH[i]) {
+                    bt_msg[i] = data;
                 } else {
                     data_available = false;
-                    // Serial.println("Fail");
                     break;
                 }
             }

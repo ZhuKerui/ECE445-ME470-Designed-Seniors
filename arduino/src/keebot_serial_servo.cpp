@@ -44,15 +44,15 @@ void Serial_Servo::init() {
         ss_cmd_angle[i] = SERIAL_SERVO_LOW[i];
     }
     delay(1000);
-    send_cmd_in_range(0, NUM_SERVO_PER_LIMB, SERIAL_SERVO_TIME);
+    send_cmd_in_range(0, NUM_SERVO_PER_LIMB, SERIAL_SERVO_DEFAULT_TIME);
 }
 
-void Serial_Servo::send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB]) {
+void Serial_Servo::send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB], int target_time) {
     for (int i = 0; i < NUM_SERVO_PER_LIMB; i++) {
         if ((angle[i] >= SERIAL_SERVO_LOW[i] && angle[i] <= SERIAL_SERVO_HIGH[i]) 
          || (angle[i] <= SERIAL_SERVO_LOW[i] && angle[i] >= SERIAL_SERVO_HIGH[i])){
             ss_cmd_angle[i] = angle[i];
         }
     }
-    send_cmd_in_range(0, NUM_SERVO_PER_LIMB, SERIAL_SERVO_TIME);
+    send_cmd_in_range(0, NUM_SERVO_PER_LIMB, target_time);
 }
