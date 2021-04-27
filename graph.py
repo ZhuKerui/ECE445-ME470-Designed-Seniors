@@ -11,7 +11,7 @@ import pyqtgraph.opengl as gl
 class Coordinatograph(QWidget):
     def __init__(self, title:str='', xLabel:str='', xUnit:str='', yLabel:str='', yUnit:str=''):
         super(Coordinatograph, self).__init__()
-        self.setFixedSize(641, 481)
+        self.setFixedSize(481, 361)
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
         self.gw = gl.GLViewWidget()
