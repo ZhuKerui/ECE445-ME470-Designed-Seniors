@@ -15,6 +15,7 @@ from live_demo import Live_Model
 from mpii import MPII
 from ble import BLE_Driver, device_addr, read_uuid, write_uuid
 from time import time
+import pdb
 
 class Ui_MainWindow(QWidget):
     def __init__(self, parent=None):
@@ -165,8 +166,9 @@ class Ui_MainWindow(QWidget):
         '''
         Send pre-defined test command
         '''
-        test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
+        test_data = np.array([179, 90, 10, 120, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
+        print('Send')
 
     def print_data(self):
         '''

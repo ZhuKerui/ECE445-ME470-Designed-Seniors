@@ -12,7 +12,7 @@ void Bluetooth::setup_baud(int32_t baud_rate) {
 void Bluetooth::read_data() {
 
     if(bluetooth_port.available() > 0) {
-        delay(15);
+        delay(20);
         uint8_t data = (uint8_t) bluetooth_port.read();
         if (data == 0) {
             data_available = true;
