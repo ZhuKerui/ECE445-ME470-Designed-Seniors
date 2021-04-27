@@ -23,9 +23,9 @@ class Ui_MainWindow(QWidget):
         # Initialize device managers and main components
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
-        self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
+        self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print, parent=self)
         self.ble_manager.start()
-        self.mpii = MPII(self.process_angle_data)
+        self.mpii = MPII()
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
@@ -232,7 +232,7 @@ class Ui_MainWindow(QWidget):
 
     def process_pose_data(self, points:np.ndarray):
         self.pose_data_raw = points
-        self.mpii.handle_pose_data(points)
+        self.process_angle_data(self.mpii.handle_pose_data(points))
 
     def process_angle_data(self, angles:np.ndarray):
         self.angle_data = angles
@@ -249,7 +249,7 @@ class Ui_MainWindow(QWidget):
 
         if self.imitation_enable:
             # Send command if imitation is enabled
-            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time).tobytes())
+            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time).astype(np.uint8).tobytes())
 
         # Update graphic display
         self.coordinatograph.update_value(self.pose_data_raw)
