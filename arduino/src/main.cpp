@@ -70,7 +70,7 @@ void loop() {
     serial_servo_2.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*2), SERIAL_SERVO_DEFAULT_TIME);
     serial_servo_3.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*3), SERIAL_SERVO_DEFAULT_TIME);
 
-    delay(2000);
+    delay(3000);
 
     for (int i = 0; i < NUM_SERVO; i++) {
         angle[i] = SERIAL_SERVO_HIGH[i];
@@ -81,7 +81,7 @@ void loop() {
     serial_servo_2.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*2), SERIAL_SERVO_DEFAULT_TIME);
     serial_servo_3.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*3), SERIAL_SERVO_DEFAULT_TIME);
 
-    delay(2000);
+    delay(3000);
 // Loop Code
     // bluetooth.read_data();
     // if (bluetooth.data_available) {
@@ -95,4 +95,6 @@ void loop() {
     //     serial_servo_2.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*2), target_time);
     //     serial_servo_3.send_cmd_from_angle(angle+(NUM_SERVO_PER_LIMB*3), target_time);
     // }
+
+    led_blink(3);
 }

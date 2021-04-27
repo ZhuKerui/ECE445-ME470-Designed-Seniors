@@ -49,8 +49,8 @@ void Serial_Servo::init() {
 
 void Serial_Servo::send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB], int target_time) {
     for (int i = 0; i < NUM_SERVO_PER_LIMB; i++) {
-        if ((angle[i] >= SERIAL_SERVO_LOW[i] && angle[i] <= SERIAL_SERVO_HIGH[i]) 
-         || (angle[i] <= SERIAL_SERVO_LOW[i] && angle[i] >= SERIAL_SERVO_HIGH[i])){
+        if ((angle[i] >= SERIAL_SERVO_LOW[i+id_offset-1] && angle[i] <= SERIAL_SERVO_HIGH[i+id_offset-1]) 
+         || (angle[i] <= SERIAL_SERVO_LOW[i+id_offset-1] && angle[i] >= SERIAL_SERVO_HIGH[i+id_offset-1])){
             ss_cmd_angle[i] = angle[i];
         }
     }
