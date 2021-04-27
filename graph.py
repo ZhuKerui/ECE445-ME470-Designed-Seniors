@@ -33,11 +33,17 @@ class Coordinatograph(QWidget):
         self.arm = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
         self.back = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
         self.leg = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
+        self.x_axis = gl.GLLinePlotItem(color=pg.glColor('r'), width=10., antialias=True)
+        self.y_axis = gl.GLLinePlotItem(color=pg.glColor('g'), width=10., antialias=True)
+        self.z_axis = gl.GLLinePlotItem(color=pg.glColor('b'), width=10., antialias=True)
         self.gw.addItem(self.r_arm)
         self.gw.addItem(self.l_arm)
         self.gw.addItem(self.arm)
         self.gw.addItem(self.back)
         self.gw.addItem(self.leg)
+        self.gw.addItem(self.x_axis)
+        self.gw.addItem(self.y_axis)
+        self.gw.addItem(self.z_axis)
 
         self.pause = False
  
@@ -64,7 +70,19 @@ class Coordinatograph(QWidget):
         # self.arm.setData(pos=points[self.arm_edges])
         self.back.setData(pos=points[self.back_edges])
         self.leg.setData(pos=points[self.leg_edges])
- 
+
+    def show_axis(self, origin:np.ndarray, axis:np.ndarray):
+        self.x_axis.setVisible(True)
+        self.y_axis.setVisible(True)
+        self.z_axis.setVisible(True)
+        self.x_axis.setData(pos=np.array([origin, origin + axis[0]]))
+        self.y_axis.setData(pos=np.array([origin, origin + axis[1]]))
+        self.z_axis.setData(pos=np.array([origin, origin + axis[2]]))
+
+    def clear_axis(self):
+        self.x_axis.setVisible(False)
+        self.y_axis.setVisible(False)
+        self.z_axis.setVisible(False)
  
 if __name__ == '__main__':
     app = QApplication(sys.argv)

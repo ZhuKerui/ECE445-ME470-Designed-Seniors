@@ -60,10 +60,14 @@ class Ui_MainWindow(QWidget):
         test_button = QPushButton(u'Test Command')
         print_data_button = QPushButton(u'Print Data')
         self.record_button = QPushButton(u'Record On')
+        self.show_axis_button = QPushButton(u'Show Axis')
+        self.axis_id_input = QLineEdit()
         debug_layout.addWidget(self.denoise_button)
         debug_layout.addWidget(test_button)
         debug_layout.addWidget(print_data_button)
         debug_layout.addWidget(self.record_button)
+        debug_layout.addWidget(self.show_axis_button)
+        debug_layout.addWidget(self.axis_id_input)
         debug_group.setLayout(debug_layout)
 
         # Parameter adjustment operations group
@@ -109,6 +113,7 @@ class Ui_MainWindow(QWidget):
         test_button.clicked.connect(self.send_test_command)
         print_data_button.clicked.connect(self.print_data)
         self.record_button.clicked.connect(self.record_button_click)
+        self.show_axis_button.clicked.connect(self.show_axis_button_click)
         set_threshold_button.clicked.connect(self.set_threshold_button_click)
         set_v_lim_button.clicked.connect(self.set_v_lim_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
@@ -188,6 +193,19 @@ class Ui_MainWindow(QWidget):
             self.record_button.setText('Record On')
             self.record_list.to_csv('temp.csv', index=False)
 
+    def show_axis_button_click(self):
+        axis_id = int(self.axis_id_input.text())
+        if axis_id == 0:
+            self.coordinatograph.show_axis(self.pose_data_raw[MPII.r_shoulder], self.mpii.r_shoulder_axis)
+        elif axis_id == 1:
+            self.coordinatograph.show_axis(self.pose_data_raw[MPII.l_shoulder], self.mpii.l_shoulder_axis)
+        elif axis_id == 2:
+            self.coordinatograph.show_axis(self.pose_data_raw[MPII.r_hip], self.mpii.r_hip_axis)
+        elif axis_id == 3:
+            self.coordinatograph.show_axis(self.pose_data_raw[MPII.l_hip], self.mpii.l_hip_axis)
+        else:
+            self.coordinatograph.clear_axis()
+            
     def set_threshold_button_click(self):
         self.mpii.div_lim = float(self.threshold_input.text())
         print(self.mpii.div_lim)

@@ -29,10 +29,10 @@ void setup() {
     bluetooth.setup_baud(BLUETOOTH_BAUD_RATE);
     led_setup();
 
-    // serial_servo_0.init();
-    // serial_servo_1.init();
-    // serial_servo_2.init();
-    // serial_servo_3.init();
+    serial_servo_0.init();
+    serial_servo_1.init();
+    serial_servo_2.init();
+    serial_servo_3.init();
     
     for (int i = 0; i < NUM_SERVO; i++) {
         BT_SS_MAP_K[i] = (SERIAL_SERVO_HIGH[i] - SERIAL_SERVO_LOW[i]) / (BT_HIGH[i] - BT_LOW);

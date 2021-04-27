@@ -65,7 +65,7 @@ class MPII:
         # Predefine the indices of the ending points for the vectors
         self.vec_end = np.array([self.r_shoulder, self.r_elbow, self.r_wrist, self.l_shoulder, 
                                 self.l_elbow, self.l_wrist, self.spine, self.spine, 
-                                self.l_hip, self.r_knee, self.r_ankle, self.l_hip, 
+                                self.r_hip, self.r_knee, self.r_ankle, self.l_hip, 
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
         # Denoise components
         self.is_denoise = False                 # Whether denoise is enabled
@@ -107,13 +107,13 @@ class MPII:
         '''
         Generate the initial axis for each limb based on the pose data
         '''
-        shoulder_x = vecs[self.upperspine_v]
+        shoulder_x = - vecs[self.lumbarspine_v]
         r_shoulder_y, l_shoulder_y = np.cross(vecs[[self.r_shoulder_v, self.l_shoulder_v]], shoulder_x)
         r_shoulder_z, l_shoulder_z = np.cross(shoulder_x, [r_shoulder_y, l_shoulder_y])
         l_shoulder_y = - l_shoulder_y # Inverse the direction of y axis for the left side, make it left-hand coordinate
         
         hip_x = - vecs[self.lumbarspine_v]
-        r_hip_y, l_hip_y = np.cross(hip_x, vecs[[self.r_hipbone_v, self.l_hipbone_v]]) # The leg's y direction is the opposite of arm's
+        r_hip_y, l_hip_y = np.cross(vecs[[self.r_hipbone_v, self.l_hipbone_v]], hip_x) # The leg's y direction is the opposite of arm's
         r_hip_z, l_hip_z = np.cross(hip_x, [r_hip_y, l_hip_y])
         l_hip_y = - l_hip_y # Inverse the direction of y axis for the left side, make it left-hand coordinate
         return normalize(np.array([shoulder_x, r_shoulder_y, r_shoulder_z, shoulder_x, l_shoulder_y, l_shoulder_z, hip_x, r_hip_y, r_hip_z, hip_x, l_hip_y, l_hip_z])).reshape(4,3,3)
@@ -123,6 +123,7 @@ class MPII:
         project_vec = upper_limb - (upper_limb.dot(axis[:, 1]) * axis[:, 1])
         project_vec /= np.linalg.norm(project_vec)
         theta_0 = np.arccos(project_vec.dot(axis[:, 0]))
+        theta_0_checkpoint = project_vec.dot(axis[:, 2])
         theta_1 = np.arccos(upper_limb.dot(axis[:, 1]))
         rot_axis = axis[:, 1] if limb_id % 2 == 1 else -axis[:, 1]
         R1 = Rodrigues(theta_0, rot_axis)
@@ -135,17 +136,19 @@ class MPII:
         project_vec /= np.linalg.norm(project_vec)
         theta_2 = np.arccos(project_vec.dot(axis[:, 2]))
         theta_3 = np.arccos(lower_limb.dot(axis[:, 1]))
-        theta_3 = 130 if theta_3 > 130 else theta_3
 
-        return (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)
+        ret = (np.array([theta_0, theta_1, theta_2, theta_3]) * 180 / np.pi).astype(int)
+        # Angle check
+        ret[0] = ret[0] if theta_0_checkpoint > 0 else 0
+        return ret
 
     def handle_pose_data(self, points:np.ndarray):
         vecs = self.gen_vecs(points)
-        r_shoulder_axis, l_shoulder_axis, r_hip_axis, l_hip_axis = self.gen_init_axis(vecs)
-        r_arm_angle = self.cal_limb_angle(vecs[self.r_upperarm_v], vecs[self.r_forearm_v], r_shoulder_axis, self.RIGHT_ARM)
-        l_arm_angle = self.cal_limb_angle(vecs[self.l_upperarm_v], vecs[self.l_forearm_v], l_shoulder_axis, self.LEFT_ARM)
-        r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], r_hip_axis, self.RIGHT_LEG)
-        l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], l_hip_axis, self.LEFT_LEG)
+        self.r_shoulder_axis, self.l_shoulder_axis, self.r_hip_axis, self.l_hip_axis = self.gen_init_axis(vecs)
+        r_arm_angle = self.cal_limb_angle(vecs[self.r_upperarm_v], vecs[self.r_forearm_v], self.r_shoulder_axis, self.RIGHT_ARM)
+        l_arm_angle = self.cal_limb_angle(vecs[self.l_upperarm_v], vecs[self.l_forearm_v], self.l_shoulder_axis, self.LEFT_ARM)
+        r_hip_angle = self.cal_limb_angle(vecs[self.r_thigh_v], vecs[self.r_calfbone_v], self.r_hip_axis, self.RIGHT_LEG)
+        l_hip_angle = self.cal_limb_angle(vecs[self.l_thigh_v], vecs[self.l_calfbone_v], self.l_hip_axis, self.LEFT_LEG)
         angle = np.hstack([r_arm_angle, l_arm_angle, r_hip_angle, l_hip_angle])
         if self.is_denoise:
             angle = self.servo_angle_denoise(angle)
