@@ -23,12 +23,12 @@ const int BT_HIGH[BLE_MSG_LENGTH] = {180,  180,  180,  135,             // Right
 
 // const int SERIAL_SERVO_LOW[NUM_SERVO] = {2100, 2150, 2150, 825, 2100, 2150, 2150, 825, 2100, 2150, 2150, 825, 2100, 2150, 2150, 825};
 // const int SERIAL_SERVO_HIGH[NUM_SERVO] = {850,  850,  850,  1800,  850,  850,  850,  1800,  850,  850,  850,  1800,  850,  850,  850,  1800};
-const int SERIAL_SERVO_LOW[NUM_SERVO] = {2150,      2150,   2150,   825,    // Right Arm
+const int SERIAL_SERVO_LOW[NUM_SERVO] = {850,      850,   2150,   825,    // Right Arm
                                          2150,      900,    850,    900,    // Right Leg
                                          2100,      2150,   2150,   825,    // Left Arm To Do
                                          2150,      800,    2150,   850};   // Left Leg
 
-const int SERIAL_SERVO_HIGH[NUM_SERVO] = {850,      850,    850,    1800,     // Right Arm
+const int SERIAL_SERVO_HIGH[NUM_SERVO] = {2150,      2150,    850,    1800,     // Right Arm
                                           875,      2200,   2150,   1800,     // Right Leg
                                           850,      850,    850,    1800,     // Left Arm To Do
                                           900,      2100,   850,    1750};    // Left Leg

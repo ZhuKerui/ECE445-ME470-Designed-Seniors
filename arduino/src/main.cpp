@@ -21,7 +21,7 @@ float BT_SS_MAP_K[NUM_SERVO], BT_SS_MAP_B[NUM_SERVO];
 
 void setup() {
     Serial.begin(115200);
-    serial_servo_0.setup_baud(BLUETOOTH_BAUD_RATE);
+    serial_servo_0.setup_baud(SERVO_BAUD_RATE);
     serial_servo_1.setup_baud(SERVO_BAUD_RATE);
     serial_servo_2.setup_baud(SERVO_BAUD_RATE);
     serial_servo_3.setup_baud(SERVO_BAUD_RATE);
