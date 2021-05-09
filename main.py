@@ -14,7 +14,8 @@ from graph import Coordinatograph
 from live_demo import Live_Model
 from mpii import MPII
 from ble import BLE_Driver, device_addr, read_uuid, write_uuid
-from time import time
+from time import sleep, time
+import pdb
 
 class Ui_MainWindow(QWidget):
     def __init__(self, parent=None):
@@ -22,14 +23,14 @@ class Ui_MainWindow(QWidget):
         # Initialize device managers and main components
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
-        self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print)
+        self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print, parent=self)
         self.ble_manager.start()
-        self.mpii = MPII(self.process_angle_data)
+        self.mpii = MPII()
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
         self.pose_model.start()
         self.set_ui()
-        self.imitation_enable = False
+        self.imitation_enable = True
         # Debug and Param Adjust stuffs
         self.is_record = False                  # Whether it is recording
         self.pose_data_raw = np.array([])       # The pose data calculated by the neural network model
@@ -47,9 +48,11 @@ class Ui_MainWindow(QWidget):
         user_layout = QHBoxLayout()
         self.camera_open_button = QPushButton(u'Camera On')
         choose_image_button = QPushButton('Choose Image')
+        self.choose_video_button = QPushButton('Choose Video')
         show_std_pose_button = QPushButton('Show Standard')
         user_layout.addWidget(self.camera_open_button)
         user_layout.addWidget(choose_image_button)
+        user_layout.addWidget(self.choose_video_button)
         user_layout.addWidget(show_std_pose_button)
         user_group.setLayout(user_layout)
 
@@ -60,13 +63,13 @@ class Ui_MainWindow(QWidget):
         test_button = QPushButton(u'Test Command')
         print_data_button = QPushButton(u'Print Data')
         self.record_button = QPushButton(u'Record On')
-        self.show_axis_button = QPushButton(u'Show Axis')
+        show_axis_button = QPushButton(u'Show Axis')
         self.axis_id_input = QLineEdit()
         debug_layout.addWidget(self.denoise_button)
         debug_layout.addWidget(test_button)
         debug_layout.addWidget(print_data_button)
         debug_layout.addWidget(self.record_button)
-        debug_layout.addWidget(self.show_axis_button)
+        debug_layout.addWidget(show_axis_button)
         debug_layout.addWidget(self.axis_id_input)
         debug_group.setLayout(debug_layout)
 
@@ -108,12 +111,13 @@ class Ui_MainWindow(QWidget):
         # Signal connections setup
         self.camera_open_button.clicked.connect(self.camera_open_button_click)
         choose_image_button.clicked.connect(self.analyze_image_file)
+        self.choose_video_button.clicked.connect(self.analyze_video_file)
         show_std_pose_button.clicked.connect(self.show_std_pose)
         self.denoise_button.clicked.connect(self.denoise_button_click)
         test_button.clicked.connect(self.send_test_command)
         print_data_button.clicked.connect(self.print_data)
         self.record_button.clicked.connect(self.record_button_click)
-        self.show_axis_button.clicked.connect(self.show_axis_button_click)
+        show_axis_button.clicked.connect(self.show_axis_button_click)
         set_threshold_button.clicked.connect(self.set_threshold_button_click)
         set_v_lim_button.clicked.connect(self.set_v_lim_button_click)
         self.timer_camera.timeout.connect(self.show_camera)
@@ -128,19 +132,25 @@ class Ui_MainWindow(QWidget):
         Turn on/off the camera
         '''
         if self.timer_camera.isActive() == False:
-            flag = self.camera_manager.open(self.CAM_NUM)
-            if flag == False:
-                msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"Please check whether the camera is connected to the computer correctly", buttons=QtWidgets.QMessageBox.Ok,
-                                            defaultButton=QtWidgets.QMessageBox.Ok)
-            else:
-                self.timer_camera.start(30)
-                self.camera_open_button.setText(u'Camera off')
-                self.imitation_enable = True    # Enable the imitation
+            self.__start_flow_analysis(self.CAM_NUM)
+            self.camera_open_button.setText(u'Camera off')
         else:
-            self.timer_camera.stop()
-            self.camera_manager.release()
-            self.camera_display_label.clear()
+            self.__stop_flow_analysis()
             self.camera_open_button.setText(u'Camera on')
+
+    def __start_flow_analysis(self, input_stream):
+        flag = self.camera_manager.open(input_stream)
+        if flag == False:
+            msg = QtWidgets.QMessageBox.warning(self, u"Warning", u"Please check whether the camera is connected to the computer correctly", buttons=QtWidgets.QMessageBox.Ok,
+                                        defaultButton=QtWidgets.QMessageBox.Ok)
+        else:
+            self.timer_camera.start(40)
+            self.imitation_enable = True    # Enable the imitation
+
+    def __stop_flow_analysis(self):
+        self.timer_camera.stop()
+        self.camera_manager.release()
+        self.camera_display_label.clear()
 
     def analyze_image_file(self):
         fileName,fileType = QFileDialog.getOpenFileName(None, "choose file", os.getcwd(), "All Files(*)")
@@ -150,6 +160,17 @@ class Ui_MainWindow(QWidget):
         show = cv2.resize(temp_image, (640, 480))
         show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
         self.analyze_image(show)
+
+    def analyze_video_file(self):
+        if self.timer_camera.isActive() == False:
+            fileName,fileType = QFileDialog.getOpenFileName(None, "choose file", os.getcwd(), "All Files(*)")
+            if not fileName:
+                return
+            self.__start_flow_analysis(fileName)
+            self.choose_video_button.setText(u'Stop Video')
+        else:
+            self.__stop_flow_analysis()
+            self.choose_video_button.setText(u'Choose Video')
 
     def show_std_pose(self):
         self.coordinatograph.update_value(self.mpii.std_pose)
@@ -165,8 +186,9 @@ class Ui_MainWindow(QWidget):
         '''
         Send pre-defined test command
         '''
-        test_data = np.array([90, 90, 90, 90, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
+        test_data = np.array([179, 90, 10, 120, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
+        print('Send')
 
     def print_data(self):
         '''
@@ -215,7 +237,12 @@ class Ui_MainWindow(QWidget):
 
     def show_camera(self):
         camera_image = self.camera_manager.get_camera_image()
-        self.analyze_image(camera_image)
+        if self.camera_manager.file_valid:
+            self.analyze_image(camera_image)
+        else:
+            self.__stop_flow_analysis()
+            self.choose_video_button.setText('Choose Video')
+            self.camera_open_button.setText('Camera On')
 
     def analyze_image(self, camera_image:np.ndarray):
         image_h, image_w = camera_image.shape[0:2]
@@ -230,7 +257,7 @@ class Ui_MainWindow(QWidget):
 
     def process_pose_data(self, points:np.ndarray):
         self.pose_data_raw = points
-        self.mpii.handle_pose_data(points)
+        self.process_angle_data(self.mpii.handle_pose_data(points))
 
     def process_angle_data(self, angles:np.ndarray):
         self.angle_data = angles
@@ -247,12 +274,11 @@ class Ui_MainWindow(QWidget):
 
         if self.imitation_enable:
             # Send command if imitation is enabled
-            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time).tobytes())
+            self.ble_manager.write(b'\x00%b' % np.append(self.angle_data, target_time).astype(np.uint8).tobytes())
 
         # Update graphic display
         self.coordinatograph.update_value(self.pose_data_raw)
         self.debug_graph.update_value(self.pose_data_denoise)
-        # self.coordinatograph.update_value(self.mpii.std_pose)
 
     def closeEvent(self, event):
         ok = QtWidgets.QPushButton()

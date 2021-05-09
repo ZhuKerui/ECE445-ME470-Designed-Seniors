@@ -42,6 +42,7 @@ To read the camera input, we use the opencv-python library, which is a python bi
 
 ```bash
 pip install --no-binary opencv-python opencv-python
+pip install opencv-contrib-python
 ```
 
 ### BLE module

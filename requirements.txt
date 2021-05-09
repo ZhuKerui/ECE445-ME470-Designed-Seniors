@@ -5,6 +5,7 @@ pyqt5-tools
 pyqtgraph
 pyOpenGL
 opencv-python
+opencv-contrib-python
 pexpect
 pygatt
 matplotlib

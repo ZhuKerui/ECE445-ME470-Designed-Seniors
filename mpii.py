@@ -55,8 +55,7 @@ class MPII:
                     'r_leg_0', 'r_leg_1', 'r_leg_2', 'r_leg_3', 
                     'l_leg_0', 'l_leg_1', 'l_leg_2', 'l_lge_3']
 
-    def __init__(self, callback):
-        self.callback = callback
+    def __init__(self):
         # Predefine the indices of the starting points for the vectors
         self.vec_start = np.array([self.neck, self.r_shoulder, self.r_elbow, self.neck, 
                                     self.l_shoulder, self.l_elbow, self.neck, self.pelvis, 
@@ -70,9 +69,6 @@ class MPII:
         # Denoise components
         self.is_denoise = False                 # Whether denoise is enabled
         self.hist_len = 3
-        # self.angle_raw_history = np.zeros((self.hist_len, 16))
-        # self.angle_hist = np.zeros((self.hist_len, 16))
-        # self.time_log = np.zeros((self.hist_len))
         self.velocity_raw_history = np.zeros((self.hist_len, 16))
         self.last_angle = np.zeros(16)                  # Last sent angle
         self.last_time = time()
@@ -155,7 +151,7 @@ class MPII:
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
         self.last_angle = angle
-        self.callback(self.last_angle.astype(np.uint8))
+        return self.last_angle.astype(np.uint8).copy()
 
 
     def servo_angle_denoise(self, angle_list:np.ndarray):  
