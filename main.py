@@ -24,7 +24,7 @@ class Ui_MainWindow(QWidget):
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print, parent=self)
-        self.ble_manager.start()
+        # self.ble_manager.start()
         self.mpii = MPII()
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
@@ -33,6 +33,9 @@ class Ui_MainWindow(QWidget):
         self.imitation_enable = True
         # Debug and Param Adjust stuffs
         self.is_record = False                  # Whether it is recording
+        self.is_record_video = False            # Whether it is recording video
+        self.video_writer = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+        self.vw = None
         self.pose_data_raw = np.array([])       # The pose data calculated by the neural network model
         self.pose_data_denoise = np.array([])   # The pose data reconstructed from denoised data
         self.angle_data = np.array([])          # The angle data for each servo
@@ -49,11 +52,13 @@ class Ui_MainWindow(QWidget):
         self.camera_open_button = QPushButton(u'Camera On')
         choose_image_button = QPushButton('Choose Image')
         self.choose_video_button = QPushButton('Choose Video')
+        self.record_video_button = QPushButton('Record Video')
         show_std_pose_button = QPushButton('Show Standard')
         user_layout.addWidget(self.camera_open_button)
         user_layout.addWidget(choose_image_button)
         user_layout.addWidget(self.choose_video_button)
         user_layout.addWidget(show_std_pose_button)
+        user_layout.addWidget(self.record_video_button)
         user_group.setLayout(user_layout)
 
         # Debug operations group
@@ -113,6 +118,7 @@ class Ui_MainWindow(QWidget):
         choose_image_button.clicked.connect(self.analyze_image_file)
         self.choose_video_button.clicked.connect(self.analyze_video_file)
         show_std_pose_button.clicked.connect(self.show_std_pose)
+        self.record_video_button.clicked.connect(self.record_video_button_click)
         self.denoise_button.clicked.connect(self.denoise_button_click)
         test_button.clicked.connect(self.send_test_command)
         print_data_button.clicked.connect(self.print_data)
@@ -157,9 +163,7 @@ class Ui_MainWindow(QWidget):
         if not fileName:
             return
         temp_image = cv2.imread(fileName)
-        show = cv2.resize(temp_image, (640, 480))
-        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
-        self.analyze_image(show)
+        self.analyze_image(temp_image)
 
     def analyze_video_file(self):
         if self.timer_camera.isActive() == False:
@@ -174,6 +178,17 @@ class Ui_MainWindow(QWidget):
 
     def show_std_pose(self):
         self.coordinatograph.update_value(self.mpii.std_pose)
+
+    def record_video_button_click(self):
+        if not self.is_record_video:
+            fileName,fileType = QFileDialog.getSaveFileName(None, "choose file", os.getcwd(), "All Files(*)")
+            if not fileName:
+                return
+            self.vw = cv2.VideoWriter(fileName, self.video_writer, 25, (640, 480))
+        else:
+            self.vw.release()
+        self.is_record_video = not self.is_record_video
+        self.record_video_button.setText('Stop Recording' if self.is_record_video else 'Record Video')
 
     def denoise_button_click(self):
         '''
@@ -245,15 +260,19 @@ class Ui_MainWindow(QWidget):
             self.camera_open_button.setText('Camera On')
 
     def analyze_image(self, camera_image:np.ndarray):
-        image_h, image_w = camera_image.shape[0:2]
-        showImage = QtGui.QImage(camera_image.data, camera_image.shape[1], camera_image.shape[0], QtGui.QImage.Format_RGB888)
+        show = cv2.resize(camera_image, (640, 480))
+        if self.is_record_video:
+            self.vw.write(show)
+        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+        image_h, image_w = show.shape[0:2]
+        showImage = QtGui.QImage(show.data, show.shape[1], show.shape[0], QtGui.QImage.Format_RGB888)
         self.camera_display_label.setPixmap(QtGui.QPixmap.fromImage(showImage))
         short_edge = min(image_h, image_w)
         half_short_edge = int(short_edge / 2)
         center_h, center_w = int(image_h / 2), int(image_w / 2)
-        camera_image = camera_image[(center_h-half_short_edge):(center_h+half_short_edge), (center_w-half_short_edge):(center_w+half_short_edge)]
-        camera_image = cv2.resize(camera_image, (256, 256))
-        self.pose_model.enqueue_image(camera_image)
+        show = show[(center_h-half_short_edge):(center_h+half_short_edge), (center_w-half_short_edge):(center_w+half_short_edge)]
+        show = cv2.resize(show, (256, 256))
+        self.pose_model.enqueue_image(show)
 
     def process_pose_data(self, points:np.ndarray):
         self.pose_data_raw = points

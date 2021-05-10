@@ -9,9 +9,7 @@ class Camera_Manager:
         self.file_valid, image = self.cap.read()
         if not self.file_valid:
             return None
-        show = cv2.resize(image, (640, 480))
-        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
-        return show
+        return image
     
     def release(self):
         self.cap.release()
