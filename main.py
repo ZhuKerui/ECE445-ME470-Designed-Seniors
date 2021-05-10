@@ -24,7 +24,7 @@ class Ui_MainWindow(QWidget):
         self.timer_camera = QtCore.QTimer()
         self.camera_manager = Camera_Manager()
         self.ble_manager = BLE_Driver(device_addr=device_addr, read_uuid=read_uuid, write_uuid=write_uuid, read_handler=print, parent=self)
-        # self.ble_manager.start()
+        self.ble_manager.start()
         self.mpii = MPII()
         self.CAM_NUM = 0
         self.pose_model = Live_Model(self)
@@ -201,7 +201,8 @@ class Ui_MainWindow(QWidget):
         '''
         Send pre-defined test command
         '''
-        test_data = np.array([179, 90, 10, 120, 45, 45, 45, 45, 30, 30, 30, 30, 1, 1, 1, 1, 10], dtype=np.uint8)
+        # test_data = np.array([90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 10], dtype=np.uint8)
+        test_data = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10], dtype=np.uint8)
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
         print('Send')
 

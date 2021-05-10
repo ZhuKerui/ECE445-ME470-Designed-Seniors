@@ -38,33 +38,33 @@ void loop() {
     // put your main code here, to run repeatedly:
 
 // Test: calibration and initilization
-    for (int i = 0; i < NUM_SERVO; i++) {
-        angle[i] = SERIAL_SERVO_LOW[i];
-    }
-    serial_up.send_cmd_from_angle(angle, SERIAL_SERVO_DEFAULT_TIME);
-    serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), SERIAL_SERVO_DEFAULT_TIME);
+    // for (int i = 0; i < NUM_SERVO; i++) {
+    //     angle[i] = SERIAL_SERVO_LOW[i];
+    // }
+    // serial_up.send_cmd_from_angle(angle, SERIAL_SERVO_DEFAULT_TIME);
+    // serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), SERIAL_SERVO_DEFAULT_TIME);
 
-    delay(3000);
+    // delay(3000);
 
-    for (int i = 0; i < NUM_SERVO; i++) {
-        angle[i] = SERIAL_SERVO_HIGH[i];
-    }
-    serial_up.send_cmd_from_angle(angle, SERIAL_SERVO_DEFAULT_TIME);
-    serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), SERIAL_SERVO_DEFAULT_TIME);
+    // for (int i = 0; i < NUM_SERVO; i++) {
+    //     angle[i] = SERIAL_SERVO_HIGH[i];
+    // }
+    // serial_up.send_cmd_from_angle(angle, SERIAL_SERVO_DEFAULT_TIME);
+    // serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), SERIAL_SERVO_DEFAULT_TIME);
 
-    delay(3000);
+    // delay(3000);
 
 
 // Loop Code
-    // bluetooth.read_data();
-    // if (bluetooth.data_available) {
-    //     bluetooth.data_available = false;
-    //     for (int i = 0; i < NUM_SERVO; i++) {
-    //         angle[i] = (int)(BT_SS_MAP_K[i] * bluetooth.bt_msg[i] + BT_SS_MAP_B[i]);
-    //     }
-    //     target_time = ((int)bluetooth.bt_msg[BLE_MSG_LENGTH-1]) * 100;
-    //     Serial.println(target_time);
-    //     serial_up.send_cmd_from_angle(angle, target_time);
-    //     serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), target_time);
-    // }
+    bluetooth.read_data();
+    if (bluetooth.data_available) {
+        bluetooth.data_available = false;
+        for (int i = 0; i < NUM_SERVO; i++) {
+            angle[i] = (int)(BT_SS_MAP_K[i] * bluetooth.bt_msg[i] + BT_SS_MAP_B[i]);
+        }
+        target_time = ((int)bluetooth.bt_msg[BLE_MSG_LENGTH-1]) * 100;
+        // Serial.println(target_time);
+        serial_up.send_cmd_from_angle(angle, target_time);
+        serial_down.send_cmd_from_angle(angle+(NUM_SERVO_PER_PORT*1), target_time);
+    }
 }
