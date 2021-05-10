@@ -15,7 +15,7 @@ class Serial_Servo
 {
 private:
     SoftwareSerial servo_port;
-    int ss_cmd_angle[NUM_SERVO_PER_LIMB];
+    int ss_cmd_angle[NUM_SERVO_PER_PORT];
     char cmd_return[200];
     int id_offset;
 public:
@@ -24,7 +24,7 @@ public:
     void init();
     void send_cmd(int len, ...);
     void send_cmd_in_range(int idx_low, int idx_high, int timev);
-    void send_cmd_from_angle(int angle[NUM_SERVO_PER_LIMB], int target_time);
+    void send_cmd_from_angle(int angle[NUM_SERVO_PER_PORT], int target_time);
 };
 
 #endif
