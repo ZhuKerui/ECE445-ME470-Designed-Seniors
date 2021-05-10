@@ -68,21 +68,22 @@ class MPII:
                                 self.l_knee, self.l_ankle], dtype=np.uint8)
         # Denoise components
         self.is_denoise = False                 # Whether denoise is enabled
-        self.hist_len = 3
+        self.hist_len = 5
         self.velocity_raw_history = np.zeros((self.hist_len, 16))
         self.last_angle = np.zeros(16)                  # Last sent angle
         self.last_time = time()
         self.interval = 1000
 
-        self.div_lim = 10000
-        self.d_lim = np.array([10, 10, 10, 10, 
-                      10, 10, 10, 10,
-                      10, 10, 10, 10,
-                      10, 10, 10, 10], dtype=np.float64)
-        self.v_lim = np.array([10, 10, 10, 10, 
-                      10, 10, 10, 10,
-                      10, 10, 10, 10,
-                      10, 10, 10, 10], dtype=np.float64)
+        self.div_lim = 100
+        # self.d_lim = np.array([10, 10, 10, 10, 
+        #               10, 10, 10, 10,
+        #               10, 10, 10, 10,
+        #               10, 10, 10, 10], dtype=np.float64)
+        # self.v_lim = np.array([10, 10, 10, 10, 
+        #               10, 10, 10, 10,
+        #               10, 10, 10, 10,
+        #               10, 10, 10, 10], dtype=np.float64)
+        self.v_lim = np.ones(16) * 60
 
         # Components for visualizing the denoised pose
         self.std_pose = np.array([[2., 2., 2.], [2., 1., 2.], [2., 0., 2.],             # The standard (or initial) position for the joints
@@ -171,9 +172,11 @@ class MPII:
         self.last_time = curr_time
 
         velocity = (angle_list - self.last_angle) / self.interval
-        self.div = np.sum(np.abs(self.velocity_raw_history - velocity))
+        # self.div = np.sum(np.abs(self.velocity_raw_history - velocity)) / self.hist_len
+        self.div = np.mean(np.std(self.velocity_raw_history, axis=0))
         self.velocity_raw_history = np.vstack([self.velocity_raw_history[1:], velocity])
         if self.div <= self.div_lim:
+            print(self.div)
             new_angle_list = angle_list.copy()
             v_greater = velocity > self.v_lim
             v_lower = velocity < - self.v_lim
