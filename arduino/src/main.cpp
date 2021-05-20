@@ -5,8 +5,8 @@
 #include <keebot_led.h>
 #include <keebot_serial_servo.h>
 
-Serial_Servo serial_up(4, 5, ID_OFFSET_0); // RX,TX
-Serial_Servo serial_down(6, 7, ID_OFFSET_1); // RX,TX
+Serial_Servo serial_down(4, 5, ID_OFFSET_1); // RX,TX
+Serial_Servo serial_up(6, 7, ID_OFFSET_0); // RX,TX
 Bluetooth bluetooth(2, 3); // RX,TX
 int angle[NUM_SERVO];
 int target_time;
@@ -61,6 +61,9 @@ void loop() {
         bluetooth.data_available = false;
         for (int i = 0; i < NUM_SERVO; i++) {
             angle[i] = (int)(BT_SS_MAP_K[i] * bluetooth.bt_msg[i] + BT_SS_MAP_B[i]);
+        }
+        for (int i = 0; i < BLE_MSG_LENGTH; i++) {
+            Serial.print(bluetooth.bt_msg[i]);
         }
         target_time = ((int)bluetooth.bt_msg[BLE_MSG_LENGTH-1]) * 100;
         // Serial.println(target_time);

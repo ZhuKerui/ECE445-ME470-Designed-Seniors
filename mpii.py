@@ -70,6 +70,7 @@ class MPII:
         self.is_denoise = False                 # Whether denoise is enabled
         self.hist_len = 5
         self.velocity_raw_history = np.zeros((self.hist_len, 16))
+        self.angle_history = np.zeros((5, 16))
         self.last_angle = np.zeros(16)                  # Last sent angle
         self.last_time = time()
         self.interval = 1000
@@ -140,6 +141,9 @@ class MPII:
         return ret
 
     def handle_pose_data(self, points:np.ndarray):
+        curr_time = time()
+        self.interval = curr_time - self.last_time
+        self.last_time = curr_time
         vecs = self.gen_vecs(points)
         self.r_shoulder_axis, self.l_shoulder_axis, self.r_hip_axis, self.l_hip_axis = self.gen_init_axis(vecs)
         r_arm_angle = self.cal_limb_angle(vecs[self.r_upperarm_v], vecs[self.r_forearm_v], self.r_shoulder_axis, self.RIGHT_ARM)
@@ -152,12 +156,13 @@ class MPII:
         angle[angle >= 180] = 180
         angle[angle < 1] = 1
         self.last_angle = angle
-        return self.last_angle.astype(np.uint8).copy()
+        if self.is_denoise:
+            angle = self.__mid_mean_filter(angle)
+        return angle.astype(np.uint8)
 
 
     def servo_angle_denoise(self, angle_list:np.ndarray):  
         # divergence
-        curr_time = time()
         # div = np.abs(self.angle_raw_history - angle_list)
         # if np.sum(div) > self.div_lim:
         #     new_angle_list = self.angle_hist[-1]
@@ -168,15 +173,12 @@ class MPII:
         #     np.delete(self.time_log, 0, 0)
         #     np.append(self.time_log, curr_time)
         #     return new_angle_list
-        self.interval = curr_time - self.last_time
-        self.last_time = curr_time
 
         velocity = (angle_list - self.last_angle) / self.interval
         # self.div = np.sum(np.abs(self.velocity_raw_history - velocity)) / self.hist_len
         self.div = np.mean(np.std(self.velocity_raw_history, axis=0))
         self.velocity_raw_history = np.vstack([self.velocity_raw_history[1:], velocity])
         if self.div <= self.div_lim:
-            print(self.div)
             new_angle_list = angle_list.copy()
             v_greater = velocity > self.v_lim
             v_lower = velocity < - self.v_lim
@@ -195,6 +197,14 @@ class MPII:
             return new_angle_list
 
         return self.last_angle
+
+    def __mean_filter(self, new_angle:np.ndarray):
+        self.angle_history = np.vstack([self.angle_history[1:], new_angle])
+        return (0.25 * self.angle_history[0]) + (0.5 * self.angle_history[1]) + (0.25 * self.angle_history[2])
+
+    def __mid_mean_filter(self, new_angle:np.ndarray):
+        self.angle_history = np.vstack([self.angle_history[1:], new_angle])
+        return np.mean(np.sort(self.angle_history, axis=0)[1:-1], axis=0)
 
     def cal_limb_vec(self, init_limb_vec:np.ndarray, limb_angles:np.ndarray, init_axis:np.ndarray, limb_id:int):
         # Transpose the limb vectors and axis vectors for the convenience of matrix multiplication

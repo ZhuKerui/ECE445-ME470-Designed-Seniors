@@ -14,8 +14,7 @@ from graph import Coordinatograph
 from live_demo import Live_Model
 from mpii import MPII
 from ble import BLE_Driver, device_addr, read_uuid, write_uuid
-from time import sleep, time
-import pdb
+from time import time
 
 class Ui_MainWindow(QWidget):
     def __init__(self, parent=None):
@@ -41,6 +40,7 @@ class Ui_MainWindow(QWidget):
         self.angle_data = np.array([])          # The angle data for each servo
         self.record_start_time = time()         # The starting time of the recording
         self.record_list = pd.DataFrame(columns=['time']+MPII.angle_labels)   # The recorded angle data
+        self.test_command_click_time = 0
 
     def set_ui(self):
         '''
@@ -100,7 +100,7 @@ class Ui_MainWindow(QWidget):
         # Visual demostration layout
         image_layout = QHBoxLayout()
         self.camera_display_label = QLabel()
-        self.camera_display_label.setFixedSize(641, 481)
+        self.camera_display_label.setFixedSize(481, 361)
         self.camera_display_label.setAutoFillBackground(False)
         self.coordinatograph = Coordinatograph('3D Skeleton Display', '', '', '', '')
         self.debug_graph = Coordinatograph('3D Skeleton Display', '', '', '', '')
@@ -201,8 +201,13 @@ class Ui_MainWindow(QWidget):
         '''
         Send pre-defined test command
         '''
-        # test_data = np.array([90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 10], dtype=np.uint8)
-        test_data = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10], dtype=np.uint8)
+        self.test_command_click_time += 1
+        if self.test_command_click_time % 2 == 0:
+            print('1')
+            test_data = np.array([180, 180, 180, 120, 180, 180, 180, 120, 180, 180, 180, 120, 180, 180, 180, 120, 10], dtype=np.uint8)
+        else:
+            test_data = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10], dtype=np.uint8)
+            print('0')
         self.ble_manager.write(b'\x00%b' % test_data.tobytes())
         print('Send')
 
@@ -213,10 +218,10 @@ class Ui_MainWindow(QWidget):
         # print('Raw Pose Data:')
         # for i in range(len(self.pose_data_raw)):
         #     print(self.pose_data_raw[i])
-        print('Denoised Angle Data:')
+        # print('Denoised Angle Data:')
         for i in range(len(self.angle_data)):
             print('%s: %d' % (MPII.angle_labels[i], self.angle_data[i]))
-        print(self.mpii.div)
+        # print(self.mpii.div)
 
     def record_button_click(self):
         '''
@@ -229,7 +234,7 @@ class Ui_MainWindow(QWidget):
             self.record_list.drop(self.record_list.index, inplace=True)
         else:
             self.record_button.setText('Record On')
-            self.record_list.to_csv('temp.csv', index=False)
+            self.record_list.to_csv('temp.csv')
 
     def show_axis_button_click(self):
         axis_id = int(self.axis_id_input.text())
@@ -261,7 +266,7 @@ class Ui_MainWindow(QWidget):
             self.camera_open_button.setText('Camera On')
 
     def analyze_image(self, camera_image:np.ndarray):
-        show = cv2.resize(camera_image, (640, 480))
+        show = cv2.resize(camera_image, (480, 360))
         if self.is_record_video:
             self.vw.write(show)
         show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
@@ -286,11 +291,14 @@ class Ui_MainWindow(QWidget):
 
         if self.is_record:
             # Record the time stamp and angle data
-            new_data = {MPII.angle_labels[i] : angles[i] for i in range(16)}
-            new_data['time'] = self.mpii.interval
-            self.record_list.append(pd.DataFrame(new_data), ignore_index=True)
+            # new_data = {MPII.angle_labels[i] : angles[i] for i in range(16)}
+            # new_data['time'] = self.mpii.interval
+            new_data = np.hstack([self.mpii.interval, angles]).reshape(1,-1)
+            # print(new_data.shape)
+            new_line = pd.DataFrame(new_data, columns=['time']+MPII.angle_labels)
+            self.record_list = self.record_list.append(new_line, ignore_index=True)
 
-        target_time = np.uint8(self.mpii.interval * 10) if self.mpii.interval < 5 else 50
+        target_time = np.uint8(self.mpii.interval * 10) if self.mpii.interval < 1 else 10
 
         if self.imitation_enable:
             # Send command if imitation is enabled
